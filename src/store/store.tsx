@@ -1,0 +1,280 @@
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
+import { SERVICIOS, type AppState, type Liquidacion, type Operacion, type Proveedor, type Temporada } from '../types'
+import { estadoInicial } from '../data/seed'
+import { cargarEstado, guardarEstado, limpiarEstado, normalizarEstado } from '../lib/storage'
+import { uid } from '../lib/id'
+import { hoyISO } from '../lib/format'
+
+/** Temporada seleccionada en el filtro global. `'todas'` agrega todo el histórico. */
+export type FiltroTemporada = number | 'todas'
+
+interface Store {
+  estado: AppState
+  temporadaSel: FiltroTemporada
+  setTemporadaSel: (t: FiltroTemporada) => void
+
+  /** Operaciones de la temporada seleccionada. */
+  operacionesFiltradas: Operacion[]
+  liquidacionesFiltradas: Liquidacion[]
+
+  crearOperacion: (parcial?: Partial<Operacion>) => Operacion
+  guardarOperacion: (op: Operacion) => void
+  actualizarOperacion: (id: string, cambios: Partial<Operacion>) => void
+  borrarOperacion: (id: string) => void
+  duplicarOperacion: (id: string) => void
+
+  guardarProveedor: (p: Proveedor) => void
+  borrarProveedor: (id: string) => void
+
+  guardarLiquidacion: (l: Liquidacion) => void
+  borrarLiquidacion: (id: string) => void
+
+  guardarTemporada: (t: Temporada) => void
+  borrarTemporada: (year: number) => void
+
+  guardarUbicaciones: (u: string[]) => void
+
+  importarEstado: (raw: unknown) => void
+  restablecer: () => void
+}
+
+const Ctx = createContext<Store | null>(null)
+
+export function StoreProvider({ children }: { children: ReactNode }) {
+  // Una sola lectura de localStorage: la comparten el estado y el filtro inicial.
+  const inicial = useRef<AppState | null>(null)
+  if (inicial.current === null) inicial.current = cargarEstado()
+
+  const [estado, setEstado] = useState<AppState>(inicial.current)
+  const [temporadaSel, setTemporadaSel] = useState<FiltroTemporada>(
+    inicial.current.temporadas.at(-1)?.year ?? 'todas',
+  )
+
+  useEffect(() => {
+    guardarEstado(estado)
+  }, [estado])
+
+  // Si se borra la temporada seleccionada, volvemos a una vista válida.
+  useEffect(() => {
+    if (temporadaSel !== 'todas' && !estado.temporadas.some((t) => t.year === temporadaSel)) {
+      setTemporadaSel('todas')
+    }
+  }, [estado.temporadas, temporadaSel])
+
+  const operacionesFiltradas = useMemo(
+    () =>
+      temporadaSel === 'todas'
+        ? estado.operaciones
+        : estado.operaciones.filter((o) => o.temporada === temporadaSel),
+    [estado.operaciones, temporadaSel],
+  )
+
+  const liquidacionesFiltradas = useMemo(
+    () =>
+      temporadaSel === 'todas'
+        ? estado.liquidaciones
+        : estado.liquidaciones.filter((l) => l.temporada === temporadaSel),
+    [estado.liquidaciones, temporadaSel],
+  )
+
+  const crearOperacion = useCallback<Store['crearOperacion']>(
+    (parcial) => {
+      const year =
+        parcial?.temporada ??
+        (temporadaSel === 'todas' ? estado.temporadas.at(-1)?.year ?? new Date().getFullYear() : temporadaSel)
+      const cfg = estado.temporadas.find((t) => t.year === year)
+      const servicios = {} as Operacion['servicios']
+      for (const key of SERVICIOS) {
+        servicios[key] = { cantidad: 0, tarifaVenta: 0, tarifaCoste: 0, proveedorId: null }
+      }
+      const correlativo = estado.operaciones.filter((o) => o.temporada === year).length + 1
+      return {
+        id: uid('op'),
+        numeroFactura: `MM-${year}-${String(correlativo).padStart(3, '0')}`,
+        fecha: hoyISO(),
+        temporada: year,
+        ubicacion: estado.ubicaciones[0] ?? '',
+        jugador: '',
+        servicios,
+        feePct: cfg?.feePct ?? 0.2,
+        ivaVentaPct: cfg?.ivaPct ?? 0.21,
+        ivaCostePct: cfg?.ivaPct ?? 0.21,
+        pagado: 0,
+        notas: '',
+        ...parcial,
+      }
+    },
+    [estado.operaciones, estado.temporadas, estado.ubicaciones, temporadaSel],
+  )
+
+  const guardarOperacion = useCallback<Store['guardarOperacion']>((op) => {
+    setEstado((prev) => {
+      const existe = prev.operaciones.some((o) => o.id === op.id)
+      return {
+        ...prev,
+        operaciones: existe
+          ? prev.operaciones.map((o) => (o.id === op.id ? op : o))
+          : [...prev.operaciones, op],
+      }
+    })
+  }, [])
+
+  const actualizarOperacion = useCallback<Store['actualizarOperacion']>((id, cambios) => {
+    setEstado((prev) => ({
+      ...prev,
+      operaciones: prev.operaciones.map((o) => (o.id === id ? { ...o, ...cambios } : o)),
+    }))
+  }, [])
+
+  const borrarOperacion = useCallback<Store['borrarOperacion']>((id) => {
+    setEstado((prev) => ({ ...prev, operaciones: prev.operaciones.filter((o) => o.id !== id) }))
+  }, [])
+
+  const duplicarOperacion = useCallback<Store['duplicarOperacion']>((id) => {
+    setEstado((prev) => {
+      const origen = prev.operaciones.find((o) => o.id === id)
+      if (!origen) return prev
+      const copia: Operacion = {
+        ...origen,
+        id: uid('op'),
+        numeroFactura: `${origen.numeroFactura}-COPIA`,
+        pagado: 0,
+        servicios: Object.fromEntries(
+          SERVICIOS.map((k) => [k, { ...origen.servicios[k] }]),
+        ) as Operacion['servicios'],
+      }
+      const i = prev.operaciones.findIndex((o) => o.id === id)
+      const operaciones = [...prev.operaciones]
+      operaciones.splice(i + 1, 0, copia)
+      return { ...prev, operaciones }
+    })
+  }, [])
+
+  const guardarProveedor = useCallback<Store['guardarProveedor']>((p) => {
+    setEstado((prev) => ({
+      ...prev,
+      proveedores: prev.proveedores.some((x) => x.id === p.id)
+        ? prev.proveedores.map((x) => (x.id === p.id ? p : x))
+        : [...prev.proveedores, p],
+    }))
+  }, [])
+
+  const borrarProveedor = useCallback<Store['borrarProveedor']>((id) => {
+    setEstado((prev) => ({
+      ...prev,
+      proveedores: prev.proveedores.filter((p) => p.id !== id),
+      liquidaciones: prev.liquidaciones.filter((l) => l.proveedorId !== id),
+      // Las operaciones conservan su coste; solo pierden la referencia al proveedor.
+      operaciones: prev.operaciones.map((o) => ({
+        ...o,
+        servicios: Object.fromEntries(
+          SERVICIOS.map((k) => [
+            k,
+            o.servicios[k].proveedorId === id ? { ...o.servicios[k], proveedorId: null } : o.servicios[k],
+          ]),
+        ) as Operacion['servicios'],
+      })),
+    }))
+  }, [])
+
+  const guardarLiquidacion = useCallback<Store['guardarLiquidacion']>((l) => {
+    setEstado((prev) => ({
+      ...prev,
+      liquidaciones: prev.liquidaciones.some((x) => x.id === l.id)
+        ? prev.liquidaciones.map((x) => (x.id === l.id ? l : x))
+        : [...prev.liquidaciones, l],
+    }))
+  }, [])
+
+  const borrarLiquidacion = useCallback<Store['borrarLiquidacion']>((id) => {
+    setEstado((prev) => ({ ...prev, liquidaciones: prev.liquidaciones.filter((l) => l.id !== id) }))
+  }, [])
+
+  const guardarTemporada = useCallback<Store['guardarTemporada']>((t) => {
+    setEstado((prev) => ({
+      ...prev,
+      temporadas: (prev.temporadas.some((x) => x.year === t.year)
+        ? prev.temporadas.map((x) => (x.year === t.year ? t : x))
+        : [...prev.temporadas, t]
+      ).sort((a, b) => a.year - b.year),
+    }))
+  }, [])
+
+  const borrarTemporada = useCallback<Store['borrarTemporada']>((year) => {
+    setEstado((prev) => ({ ...prev, temporadas: prev.temporadas.filter((t) => t.year !== year) }))
+  }, [])
+
+  const guardarUbicaciones = useCallback<Store['guardarUbicaciones']>((u) => {
+    setEstado((prev) => ({ ...prev, ubicaciones: u }))
+  }, [])
+
+  const importarEstado = useCallback<Store['importarEstado']>((raw) => {
+    setEstado(normalizarEstado(raw))
+  }, [])
+
+  const restablecer = useCallback<Store['restablecer']>(() => {
+    limpiarEstado()
+    setEstado(estadoInicial())
+  }, [])
+
+  const value = useMemo<Store>(
+    () => ({
+      estado,
+      temporadaSel,
+      setTemporadaSel,
+      operacionesFiltradas,
+      liquidacionesFiltradas,
+      crearOperacion,
+      guardarOperacion,
+      actualizarOperacion,
+      borrarOperacion,
+      duplicarOperacion,
+      guardarProveedor,
+      borrarProveedor,
+      guardarLiquidacion,
+      borrarLiquidacion,
+      guardarTemporada,
+      borrarTemporada,
+      guardarUbicaciones,
+      importarEstado,
+      restablecer,
+    }),
+    [
+      estado,
+      temporadaSel,
+      operacionesFiltradas,
+      liquidacionesFiltradas,
+      crearOperacion,
+      guardarOperacion,
+      actualizarOperacion,
+      borrarOperacion,
+      duplicarOperacion,
+      guardarProveedor,
+      borrarProveedor,
+      guardarLiquidacion,
+      borrarLiquidacion,
+      guardarTemporada,
+      borrarTemporada,
+      guardarUbicaciones,
+      importarEstado,
+      restablecer,
+    ],
+  )
+
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>
+}
+
+export function useStore(): Store {
+  const ctx = useContext(Ctx)
+  if (!ctx) throw new Error('useStore debe usarse dentro de <StoreProvider>')
+  return ctx
+}

@@ -1,0 +1,164 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-lienzo: #070b16;
+  --color-panel: #0e1526;
+  --color-panel-2: #141d33;
+  --color-borde: #1e2942;
+  --color-borde-fuerte: #2c3a5c;
+  --color-tinta: #eef2fb;
+  --color-tinta-2: #9aa8c7;
+  --color-tinta-3: #64749a;
+  --color-oro: #d9b451;
+  --color-oro-suave: #f0d68d;
+  --color-verde: #35d39a;
+  --color-verde-2: #0e6b4d;
+  --color-rojo: #f2637e;
+  --color-azul: #5b8def;
+  --color-violeta: #a98bf5;
+  --color-cian: #45c9d6;
+
+  --font-sans: 'Inter var', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, monospace;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-borde);
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background:
+      radial-gradient(1100px 620px at 82% -12%, rgba(217, 180, 81, 0.09), transparent 62%),
+      radial-gradient(900px 560px at 6% 4%, rgba(91, 141, 239, 0.1), transparent 60%),
+      var(--color-lienzo);
+    background-attachment: fixed;
+    color: var(--color-tinta);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+
+  /* Las cifras se comparan en columna: tabulares siempre. */
+  .cifra {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-borde-fuerte);
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3d4f78;
+  }
+
+  input,
+  select,
+  textarea {
+    font-family: inherit;
+  }
+
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
+    appearance: none;
+    margin: 0;
+  }
+
+  input[type='date'] {
+    color-scheme: dark;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-oro);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .panel {
+    background: linear-gradient(180deg, rgba(20, 29, 51, 0.9), rgba(14, 21, 38, 0.9));
+    border: 1px solid var(--color-borde);
+    border-radius: 1rem;
+    backdrop-filter: blur(6px);
+  }
+
+  .campo {
+    width: 100%;
+    background: rgba(7, 11, 22, 0.6);
+    border: 1px solid var(--color-borde);
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.7rem;
+    font-size: 0.875rem;
+    color: var(--color-tinta);
+    transition: border-color 120ms ease, background-color 120ms ease;
+  }
+  .campo:hover {
+    border-color: var(--color-borde-fuerte);
+  }
+  .campo:focus {
+    border-color: var(--color-oro);
+    outline: none;
+    background: rgba(7, 11, 22, 0.9);
+  }
+  .campo::placeholder {
+    color: var(--color-tinta-3);
+  }
+
+  /* Celda editable dentro de la tabla de operaciones. */
+  .celda-edit {
+    width: 100%;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 0.375rem;
+    padding: 0.25rem 0.4rem;
+    font-size: 0.8125rem;
+    color: var(--color-tinta);
+    font-variant-numeric: tabular-nums;
+    transition: border-color 120ms ease, background-color 120ms ease;
+  }
+  .celda-edit:hover {
+    border-color: var(--color-borde-fuerte);
+    background: rgba(7, 11, 22, 0.5);
+  }
+  .celda-edit:focus {
+    border-color: var(--color-oro);
+    background: rgba(7, 11, 22, 0.95);
+    outline: none;
+  }
+
+  .animar-entrada {
+    animation: entrada 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
+@keyframes entrada {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
