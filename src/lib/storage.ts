@@ -1,5 +1,6 @@
 import { SERVICIOS, type AppState, type LineaServicio, type Operacion } from '../types'
 import { estadoInicial } from '../data/seed'
+import { descargarFichero, nombreConFecha, type ResultadoDescarga } from './descarga'
 
 const CLAVE = 'magno-marbella:estado:v1'
 
@@ -123,12 +124,10 @@ export function limpiarEstado(): void {
   }
 }
 
-export function descargarJSON(estado: AppState): void {
-  const blob = new Blob([JSON.stringify(estado, null, 2)], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `magno-marbella-${new Date().toISOString().slice(0, 10)}.json`
-  a.click()
-  URL.revokeObjectURL(url)
+export function descargarJSON(estado: AppState): Promise<ResultadoDescarga> {
+  return descargarFichero(
+    nombreConFecha('magno-marbella', 'json'),
+    JSON.stringify(estado, null, 2),
+    'application/json',
+  )
 }

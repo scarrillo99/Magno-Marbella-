@@ -285,7 +285,13 @@ export function Ajustes() {
         descripcion="Los datos se guardan en este navegador. Exporta con regularidad si trabajas en varios equipos."
       >
         <div className="flex flex-wrap gap-2">
-          <Boton onClick={() => descargarJSON(estado)}>
+          <Boton
+            onClick={async () => {
+              if ((await descargarJSON(estado)) === 'error') {
+                setAviso('No se ha podido descargar la copia de seguridad en este navegador.')
+              }
+            }}
+          >
             <Download size={13} /> Exportar JSON
           </Boton>
           <Boton onClick={() => inputFichero.current?.click()}>

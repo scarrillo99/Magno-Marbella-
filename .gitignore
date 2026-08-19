@@ -6,3 +6,6 @@ dist
 
 # artefactos de compilacion incremental de TypeScript
 *.tsbuildinfo
+
+# build de fichero unico para publicar como Artifact
+magno-marbella.html

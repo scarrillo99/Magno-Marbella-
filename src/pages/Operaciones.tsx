@@ -15,6 +15,7 @@ import { eur, fechaCorta, pct } from '../lib/format'
 import { SERVICIOS, SERVICIO_LABEL, SERVICIO_SHORT, type Operacion } from '../types'
 import { Badge, Boton, Confirmacion, NumeroInput, Panel, Vacio } from '../components/ui'
 import { OperacionModal } from './OperacionModal'
+import { descargarFichero, nombreConFecha } from '../lib/descarga'
 
 type Orden =
   | 'fecha'
@@ -52,6 +53,7 @@ export function Operaciones() {
   const [modalAbierto, setModalAbierto] = useState(false)
   const [expandida, setExpandida] = useState<string | null>(null)
   const [aBorrar, setABorrar] = useState<Operacion | null>(null)
+  const [aviso, setAviso] = useState<string | null>(null)
 
   const filas = useMemo(() => {
     const q = busqueda.trim().toLowerCase()
@@ -99,7 +101,7 @@ export function Operaciones() {
     }
   }
 
-  const exportarCSV = () => {
+  const exportarCSV = async () => {
     const cab = [
       'Nº factura',
       'Fecha',
@@ -156,16 +158,25 @@ export function Operaciones() {
         .join(';'),
     )
     const csv = `﻿${[cab.map(escapar).join(';'), ...lineas].join('\n')}`
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `magno-operaciones-${new Date().toISOString().slice(0, 10)}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+    const resultado = await descargarFichero(
+      nombreConFecha('magno-operaciones', 'csv'),
+      csv,
+      'text/csv;charset=utf-8',
+    )
+    if (resultado === 'error') setAviso('No se ha podido descargar el CSV en este navegador.')
   }
 
   return (
     <div className="space-y-5">
+      {aviso && (
+        <div className="panel flex items-center justify-between gap-3 px-4 py-3 text-sm text-tinta-2">
+          <span>{aviso}</span>
+          <Boton variante="fantasma" onClick={() => setAviso(null)}>
+            Cerrar
+          </Boton>
+        </div>
+      )}
+
       <Panel
         sinPadding
         titulo="Registros de operaciones"
