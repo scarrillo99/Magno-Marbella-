@@ -1,5 +1,5 @@
 import {
-  SERVICIOS,
+  SERVICIO_LABEL,
   type AppState,
   type LineaServicio,
   type Operacion,
@@ -72,8 +72,6 @@ interface DefOperacion {
   mix: Partial<Record<ServicioKey, MixLinea>>
 }
 
-const LINEA_VACIA: LineaServicio = { cantidad: 0, tarifaVenta: 0, tarifaCoste: 0, proveedorId: null }
-
 /** Reparte los totales declarados entre las líneas de servicio de la operación. */
 function construir(def: DefOperacion): Operacion {
   const feePct = def.feePct ?? 0.2
@@ -87,24 +85,27 @@ function construir(def: DefOperacion): Operacion {
   const sumaVenta = entradas.reduce((a, [, m]) => a + m.venta, 0) || 1
   const sumaCoste = entradas.reduce((a, [, m]) => a + m.coste, 0) || 1
 
-  const servicios = {} as Record<ServicioKey, LineaServicio>
-  for (const key of SERVICIOS) servicios[key] = { ...LINEA_VACIA }
-
-  for (const [key, m] of entradas) {
+  const lineas: LineaServicio[] = entradas.map(([key, m]) => {
     const ventaLinea = (subtotalVentaObjetivo * m.venta) / sumaVenta
     const costeLinea = (baseCosteObjetivo * m.coste) / sumaCoste
-    servicios[key] = {
+    return {
+      id: `${def.id}_${key}`,
+      nombre: SERVICIO_LABEL[key],
       cantidad: m.cantidad,
       tarifaVenta: m.cantidad > 0 ? r2(ventaLinea / m.cantidad) : 0,
       tarifaCoste: m.cantidad > 0 ? r2(costeLinea / m.cantidad) : 0,
       proveedorId: m.proveedorId,
+      ivaVentaPct,
+      ivaCostePct,
     }
-  }
+  })
 
-  const subtotalReal = r2(
-    SERVICIOS.reduce((a, k) => a + r2(servicios[k].cantidad * servicios[k].tarifaVenta), 0),
+  const totalVentaReal = r2(
+    lineas.reduce((a, l) => {
+      const base = r2(l.cantidad * l.tarifaVenta)
+      return a + r2(r2(base + r2(base * feePct)) * (1 + ivaVentaPct))
+    }, 0),
   )
-  const totalVentaReal = r2(r2(subtotalReal * (1 + feePct)) * (1 + ivaVentaPct))
 
   return {
     id: def.id,
@@ -113,10 +114,8 @@ function construir(def: DefOperacion): Operacion {
     temporada: def.temporada,
     ubicacion: def.ubicacion,
     jugador: def.jugador,
-    servicios,
+    lineas,
     feePct,
-    ivaVentaPct,
-    ivaCostePct,
     pagado: def.pagado === undefined || def.pagado === null ? totalVentaReal : def.pagado,
     notas: def.notas ?? '',
   }

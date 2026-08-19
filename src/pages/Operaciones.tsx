@@ -12,7 +12,7 @@ import {
 import { useStore } from '../store/store'
 import { calcularOperacion, resumirOperaciones, type OperacionCalculada } from '../lib/calc'
 import { eur, fechaCorta, pct } from '../lib/format'
-import { SERVICIOS, SERVICIO_LABEL, SERVICIO_SHORT, type Operacion } from '../types'
+import type { Operacion } from '../types'
 import { Badge, Boton, Confirmacion, NumeroInput, Panel, Vacio } from '../components/ui'
 import { OperacionModal } from './OperacionModal'
 import { descargarFichero, nombreConFecha } from '../lib/descarga'
@@ -101,6 +101,11 @@ export function Operaciones() {
     }
   }
 
+  /**
+   * Exporta una fila por línea de servicio: es el formato que sirve para
+   * cuadrar pagos a proveedores y para pivotar en una hoja de cálculo.
+   * Los totales de la operación se repiten en cada una de sus líneas.
+   */
   const exportarCSV = async () => {
     const cab = [
       'Nº factura',
@@ -108,56 +113,66 @@ export function Operaciones() {
       'Temporada',
       'Jugador',
       'Ubicación',
-      ...SERVICIOS.flatMap((k) => [
-        `${SERVICIO_SHORT[k]} cantidad`,
-        `${SERVICIO_SHORT[k]} tarifa venta`,
-        `${SERVICIO_SHORT[k]} tarifa coste`,
-      ]),
-      'Subtotal venta',
-      'Fee servicio',
+      'Servicio',
+      'Cantidad',
+      'Precio cliente',
+      'Base venta',
+      'Fee',
       'Base imponible',
+      'IVA venta %',
       'IVA venta',
-      'Total venta',
-      'Pagado',
-      'Pendiente',
+      'Total cliente',
+      'Proveedor',
+      'Coste unitario',
       'Base coste',
+      'IVA coste %',
       'IVA coste',
-      'Total coste',
-      'Beneficio',
-      'Margen %',
+      'Total proveedor',
+      'Beneficio línea',
+      'Total operación cliente',
+      'Total operación proveedores',
+      'Beneficio operación',
+      'Cobrado operación',
+      'Pendiente operación',
       'Notas',
     ]
     const escapar = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`
-    const lineas = filas.map((c) =>
-      [
-        c.op.numeroFactura,
-        c.op.fecha,
-        c.op.temporada,
-        c.op.jugador,
-        c.op.ubicacion,
-        ...SERVICIOS.flatMap((k) => [
-          c.op.servicios[k].cantidad,
-          c.op.servicios[k].tarifaVenta,
-          c.op.servicios[k].tarifaCoste,
-        ]),
-        c.subtotalVenta,
-        c.fee,
-        c.baseImponible,
-        c.ivaVenta,
-        c.totalVenta,
-        c.pagado,
-        c.resta,
-        c.baseCoste,
-        c.ivaCoste,
-        c.totalCoste,
-        c.beneficioOperativo,
-        (c.margenPct * 100).toFixed(2),
-        c.op.notas,
-      ]
-        .map(escapar)
-        .join(';'),
+    const lineas = filas.flatMap((c) =>
+      c.lineas.map((l) =>
+        [
+          c.op.numeroFactura,
+          c.op.fecha,
+          c.op.temporada,
+          c.op.jugador,
+          c.op.ubicacion,
+          l.linea.nombre,
+          l.linea.cantidad,
+          l.linea.tarifaVenta,
+          l.base,
+          l.fee,
+          l.baseImponible,
+          (l.linea.ivaVentaPct * 100).toFixed(0),
+          l.iva,
+          l.totalVenta,
+          estado.proveedores.find((p) => p.id === l.linea.proveedorId)?.nombre ?? '',
+          l.linea.tarifaCoste,
+          l.baseCoste,
+          (l.linea.ivaCostePct * 100).toFixed(0),
+          l.ivaCoste,
+          l.totalCoste,
+          l.beneficio,
+          c.totalVenta,
+          c.totalCoste,
+          c.beneficioOperativo,
+          c.pagado,
+          c.resta,
+          c.op.notas,
+        ]
+          .map(escapar)
+          .join(';'),
+      ),
     )
-    const csv = `﻿${[cab.map(escapar).join(';'), ...lineas].join('\n')}`
+    const csv = `\ufeff${[cab.map(escapar).join(';'), ...lineas].join('\n')}`
     const resultado = await descargarFichero(
       nombreConFecha('magno-operaciones', 'csv'),
       csv,
@@ -323,6 +338,7 @@ function FilaOperacion({
   onBorrar: () => void
   onCambio: (cambios: Partial<Operacion>) => void
 }) {
+  const { estado } = useStore()
   const { op } = c
   const cobrada = c.resta <= 0.005
 
@@ -445,27 +461,35 @@ function FilaOperacion({
                     <tr className="border-b border-borde text-[10px] uppercase tracking-wider text-tinta-3">
                       <th className="px-2.5 py-1.5 text-left font-medium">Servicio</th>
                       <th className="px-2 py-1.5 text-right font-medium">Cant.</th>
-                      <th className="px-2 py-1.5 text-right font-medium">Tarifa cliente</th>
-                      <th className="px-2 py-1.5 text-right font-medium">Venta</th>
-                      <th className="px-2 py-1.5 text-right font-medium">Tarifa prov.</th>
-                      <th className="px-2 py-1.5 text-right font-medium">Coste</th>
-                      <th className="px-2.5 py-1.5 text-right font-medium">Margen</th>
+                      <th className="px-2 py-1.5 text-right font-medium">Precio ud.</th>
+                      <th className="px-2 py-1.5 text-center font-medium">IVA</th>
+                      <th className="px-2 py-1.5 text-right font-medium">Total cliente</th>
+                      <th className="px-2 py-1.5 text-left font-medium">Proveedor</th>
+                      <th className="px-2 py-1.5 text-right font-medium">Total prov.</th>
+                      <th className="px-2.5 py-1.5 text-right font-medium">Beneficio</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {c.servicios
-                      .filter((s) => s.cantidad > 0 || s.subtotalVenta > 0 || s.subtotalCoste > 0)
-                      .map((s) => (
-                        <tr key={s.key} className="border-b border-borde/50 last:border-0">
-                          <td className="px-2.5 py-1.5 text-tinta-2">{SERVICIO_LABEL[s.key]}</td>
-                          <td className="cifra px-2 py-1.5 text-right text-tinta-2">{s.cantidad}</td>
-                          <td className="cifra px-2 py-1.5 text-right text-tinta-2">{eur(s.tarifaVenta)}</td>
-                          <td className="cifra px-2 py-1.5 text-right text-tinta">{eur(s.subtotalVenta)}</td>
-                          <td className="cifra px-2 py-1.5 text-right text-tinta-2">{eur(s.tarifaCoste)}</td>
-                          <td className="cifra px-2 py-1.5 text-right text-rojo">{eur(s.subtotalCoste)}</td>
-                          <td className="cifra px-2.5 py-1.5 text-right text-verde">{eur(s.margen)}</td>
-                        </tr>
-                      ))}
+                    {c.lineas.map((l) => (
+                      <tr key={l.linea.id} className="border-b border-borde/50 last:border-0">
+                        <td className="px-2.5 py-1.5 text-tinta-2">{l.linea.nombre || 'Sin nombre'}</td>
+                        <td className="cifra px-2 py-1.5 text-right text-tinta-2">{l.linea.cantidad}</td>
+                        <td className="cifra px-2 py-1.5 text-right text-tinta-2">{eur(l.linea.tarifaVenta)}</td>
+                        <td className="px-2 py-1.5 text-center">
+                          {l.linea.ivaVentaPct === 0 ? (
+                            <Badge tono="oro">Sin IVA</Badge>
+                          ) : (
+                            <span className="text-tinta-3">{pct(l.linea.ivaVentaPct, 0)}</span>
+                          )}
+                        </td>
+                        <td className="cifra px-2 py-1.5 text-right text-tinta">{eur(l.totalVenta)}</td>
+                        <td className="px-2 py-1.5 text-tinta-3">
+                          {estado.proveedores.find((p) => p.id === l.linea.proveedorId)?.nombre ?? '—'}
+                        </td>
+                        <td className="cifra px-2 py-1.5 text-right text-rojo">{eur(l.totalCoste)}</td>
+                        <td className="cifra px-2.5 py-1.5 text-right text-verde">{eur(l.beneficio)}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -474,11 +498,11 @@ function FilaOperacion({
                 <Resumen label="Subtotal venta" valor={eur(c.subtotalVenta)} />
                 <Resumen label={`Fee servicio (${pct(op.feePct, 0)})`} valor={eur(c.fee)} />
                 <Resumen label="Base imponible" valor={eur(c.baseImponible)} fuerte />
-                <Resumen label={`IVA (${pct(op.ivaVentaPct, 0)})`} valor={eur(c.ivaVenta)} />
+                <Resumen label="IVA repercutido" valor={eur(c.ivaVenta)} />
                 <Resumen label="Total venta" valor={eur(c.totalVenta)} fuerte tono="text-oro" />
                 <div className="!my-2 border-t border-borde" />
                 <Resumen label="Base coste" valor={eur(c.baseCoste)} />
-                <Resumen label={`IVA soportado (${pct(op.ivaCostePct, 0)})`} valor={eur(c.ivaCoste)} />
+                <Resumen label="IVA soportado" valor={eur(c.ivaCoste)} />
                 <Resumen label="Total coste" valor={eur(c.totalCoste)} fuerte tono="text-rojo" />
                 <div className="!my-2 border-t border-borde" />
                 <Resumen

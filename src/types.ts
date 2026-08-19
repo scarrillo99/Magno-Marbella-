@@ -39,16 +39,31 @@ export const SERVICIO_UNIDAD: Record<ServicioKey, string> = {
 
 /**
  * Línea de servicio dentro de una operación.
- * `tarifaVenta` es lo que se factura al cliente y `tarifaCoste` lo que se
- * liquida al proveedor, ambos por unidad (hora / dia / sesión).
+ *
+ * Cada línea es un servicio con nombre libre: lo que se le cobra al cliente,
+ * lo que cuesta al proveedor y si lleva IVA o no. El IVA va por línea porque
+ * depende de cómo paga el cliente: por transferencia se repercute, en
+ * efectivo no.
  */
 export interface LineaServicio {
+  id: string
+  /** Nombre del servicio tal cual aparece en la factura. */
+  nombre: string
   cantidad: number
+  /** Precio por unidad que se le cobra al cliente, antes de fee e IVA. */
   tarifaVenta: number
+  /** Coste por unidad del proveedor, antes de IVA. */
   tarifaCoste: number
   /** Proveedor al que se liquida el coste de esta línea. */
   proveedorId: string | null
+  /** IVA repercutido al cliente. 0 = sin IVA (cobro en efectivo). */
+  ivaVentaPct: number
+  /** IVA soportado en la factura del proveedor. 0 = proveedor sin IVA. */
+  ivaCostePct: number
 }
+
+/** Tipos de IVA que se ofrecen en el desplegable de cada línea. */
+export const TIPOS_IVA = [0.21, 0.1, 0] as const
 
 export interface Operacion {
   id: string
@@ -58,13 +73,9 @@ export interface Operacion {
   temporada: number
   ubicacion: string
   jugador: string
-  servicios: Record<ServicioKey, LineaServicio>
-  /** Fee de servicio aplicado sobre el subtotal de venta (0.20 = 20%). */
+  lineas: LineaServicio[]
+  /** Fee de servicio aplicado sobre el precio de cliente (0.20 = 20%). */
   feePct: number
-  /** IVA repercutido al cliente (0.21 = 21%). 0 para operaciones exentas. */
-  ivaVentaPct: number
-  /** IVA soportado en las facturas de proveedor. */
-  ivaCostePct: number
   /** Importe ya cobrado al cliente. */
   pagado: number
   notas: string

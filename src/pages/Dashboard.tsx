@@ -35,7 +35,6 @@ import {
   tipoImpuesto,
 } from '../lib/calc'
 import { eur, eur0, pct, periodoCorto } from '../lib/format'
-import { SERVICIO_LABEL } from '../types'
 import { Badge, Barra, Panel, Vacio } from '../components/ui'
 import { KpiCard } from '../components/KpiCard'
 import { EJE, PALETA, REJILLA, TooltipCaja } from '../components/graficos'
@@ -315,10 +314,10 @@ export function Dashboard() {
                 {servicios.map((s) => {
                   const fuga = s.margenPct < 0.25
                   return (
-                    <tr key={s.key} className="border-b border-borde/60 last:border-0 hover:bg-panel-2/50">
+                    <tr key={s.nombre} className="border-b border-borde/60 last:border-0 hover:bg-panel-2/50">
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-2">
-                          <span className="text-tinta">{SERVICIO_LABEL[s.key]}</span>
+                          <span className="text-tinta">{s.nombre}</span>
                           {fuga && (
                             <span title="Margen por debajo del 25%">
                               <AlertTriangle size={13} className="text-rojo" />
@@ -352,7 +351,7 @@ export function Dashboard() {
               <div className="rounded-xl border border-verde/25 bg-verde/8 p-3">
                 <p className="text-[11px] font-medium uppercase tracking-wider text-verde">Oportunidad</p>
                 <p className="mt-1 text-xs leading-relaxed text-tinta-2">
-                  <strong className="text-tinta">{SERVICIO_LABEL[mejorServicio.key]}</strong> es el servicio con
+                  <strong className="text-tinta">{mejorServicio.nombre}</strong> es el servicio con
                   mejor margen ({pct(mejorServicio.margenPct)}). Cada 1.000 € facturados aqui dejan{' '}
                   {eur0(mejorServicio.margenPct * 1000)} de margen antes de impuestos.
                 </p>
@@ -362,7 +361,7 @@ export function Dashboard() {
               <div className="rounded-xl border border-rojo/25 bg-rojo/8 p-3">
                 <p className="text-[11px] font-medium uppercase tracking-wider text-rojo">Fuga de margen</p>
                 <p className="mt-1 text-xs leading-relaxed text-tinta-2">
-                  <strong className="text-tinta">{SERVICIO_LABEL[peorServicio.key]}</strong> deja solo{' '}
+                  <strong className="text-tinta">{peorServicio.nombre}</strong> deja solo{' '}
                   {pct(peorServicio.margenPct)} sobre {eur0(peorServicio.ingreso)} facturados. Renegociar la
                   tarifa de proveedor o repercutir el coste al cliente.
                 </p>

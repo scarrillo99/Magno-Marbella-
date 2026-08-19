@@ -9,7 +9,6 @@ import {
   type ReactNode,
 } from 'react'
 import {
-  SERVICIOS,
   type AppState,
   type Cliente,
   type Liquidacion,
@@ -119,10 +118,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         parcial?.temporada ??
         (temporadaSel === 'todas' ? estado.temporadas.at(-1)?.year ?? new Date().getFullYear() : temporadaSel)
       const cfg = estado.temporadas.find((t) => t.year === year)
-      const servicios = {} as Operacion['servicios']
-      for (const key of SERVICIOS) {
-        servicios[key] = { cantidad: 0, tarifaVenta: 0, tarifaCoste: 0, proveedorId: null }
-      }
       const correlativo = estado.operaciones.filter((o) => o.temporada === year).length + 1
       // Al abrir una temporada distinta del año en curso, la fecha de hoy
       // dejaria la operación fuera de su propia temporada.
@@ -135,10 +130,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         temporada: year,
         ubicacion: estado.ubicaciones[0] ?? '',
         jugador: '',
-        servicios,
+        lineas: [],
         feePct: cfg?.feePct ?? 0.2,
-        ivaVentaPct: cfg?.ivaPct ?? 0.21,
-        ivaCostePct: cfg?.ivaPct ?? 0.21,
         pagado: 0,
         notas: '',
         ...parcial,
@@ -179,9 +172,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         id: uid('op'),
         numeroFactura: `${origen.numeroFactura}-COPIA`,
         pagado: 0,
-        servicios: Object.fromEntries(
-          SERVICIOS.map((k) => [k, { ...origen.servicios[k] }]),
-        ) as Operacion['servicios'],
+        lineas: origen.lineas.map((l) => ({ ...l, id: uid('lin') })),
       }
       const i = prev.operaciones.findIndex((o) => o.id === id)
       const operaciones = [...prev.operaciones]
@@ -207,12 +198,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       // Las operaciones conservan su coste; solo pierden la referencia al proveedor.
       operaciones: prev.operaciones.map((o) => ({
         ...o,
-        servicios: Object.fromEntries(
-          SERVICIOS.map((k) => [
-            k,
-            o.servicios[k].proveedorId === id ? { ...o.servicios[k], proveedorId: null } : o.servicios[k],
-          ]),
-        ) as Operacion['servicios'],
+        lineas: o.lineas.map((l) => (l.proveedorId === id ? { ...l, proveedorId: null } : l)),
       })),
     }))
   }, [])

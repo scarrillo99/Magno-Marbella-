@@ -22,7 +22,7 @@ La aplicación es 100 % cliente: no necesita servidor ni base de datos. Los dato
 | Sección | Contenido |
 | --- | --- |
 | **Dashboard** | KPIs de la temporada, ranking de jugadores, desglose de gasto por proveedor, análisis de oportunidades y fugas de margen, evolución mensual y cuenta de resultados. |
-| **Operaciones** | Tabla CRUD con edición *inline* (fecha, jugador, ubicación, importe cobrado) y ficha completa con el desglose de servicios, venta, cobro y coste. Búsqueda, ordenación, duplicado y exportación a CSV. |
+| **Operaciones** | Tabla CRUD con edición *inline* (fecha, jugador, ubicación, importe cobrado) y ficha completa: líneas de servicio con nombre libre, precio al cliente, coste de proveedor e IVA por línea, más el desglose de lo que hay que pagar a cada proveedor. Búsqueda, ordenación, duplicado y exportación a CSV. |
 | **Jugadores** | Rentabilidad por cliente: facturación frente a margen, dispersión volumen/rentabilidad y detalle con peso sobre la facturación y estado de cobro. Incluye el registro de **fichas de cliente** (jugador, agencia, club, contacto), independiente de la temporada. |
 | **Proveedores** | Alta y edición de instalaciones y colaboradores, coste imputado desde las operaciones y registro de liquidaciones pagadas y pendientes. |
 | **Tarifas** | Tarifario por temporada: precio de venta al cliente y coste de proveedor de cada servicio, con el margen por unidad y aviso de las tarifas que se venden por debajo de coste. Se copia de una temporada a otra en un clic. |
@@ -33,22 +33,45 @@ secciones a la vez.
 
 ## Modelo de cálculo
 
-Cada operación se compone de líneas de servicio —chef/villa, campo, coach, gimnasio y fisio— con
-una cantidad, una tarifa de venta al cliente y una tarifa de coste del proveedor:
+Cada operación se compone de **líneas de servicio con nombre libre**. En cada línea se indica la
+cantidad, el precio por unidad que se le cobra al cliente y el coste por unidad del proveedor:
 
 ```
-Subtotal venta   = Σ (cantidad × tarifa cliente)
-Fee de servicio  = Subtotal venta × fee %            (20 % por defecto)
-Base imponible   = Subtotal venta + Fee
-IVA repercutido  = Base imponible × IVA %            (21 % por defecto)
-Total venta      = Base imponible + IVA
+Base venta      = cantidad × precio cliente
+Fee de servicio = Base venta × fee %              (20 % por defecto)
+Base imponible  = Base venta + Fee
+IVA repercutido = Base imponible × IVA venta %    (0 si se cobra sin IVA)
+Total cliente   = Base imponible + IVA
 
-Base de coste    = Σ (cantidad × tarifa proveedor)
-IVA soportado    = Base de coste × IVA %
-Total coste      = Base de coste + IVA soportado
+Base coste      = cantidad × coste proveedor
+IVA soportado   = Base coste × IVA coste %        (0 si el proveedor no repercute IVA)
+Total proveedor = Base coste + IVA soportado
 
-Beneficio operativo = Total venta − Total coste
+Beneficio       = Total cliente − Total proveedor
 ```
+
+Los totales de la operación son la suma de sus líneas. El IVA se calcula **línea a línea**, que es
+lo que permite que cada servicio lleve su propio tipo; frente a calcularlo sobre la base agregada
+puede haber una diferencia de céntimos por redondeo.
+
+### El IVA va por línea
+
+Cada línea elige su tipo de IVA de venta —21 %, 10 % o sin IVA— porque depende de cómo paga el
+cliente: **por transferencia se repercute, en efectivo no**. El selector *Forma de cobro* de la
+cabecera cambia el IVA de todas las líneas de golpe, y luego cada una se puede ajustar por
+separado; si quedan mezcladas, la operación lo avisa.
+
+El IVA soportado es independiente: lo fija la factura del proveedor, no la forma en que cobra el
+cliente. Una instalación factura con IVA aunque al cliente se le cobre en efectivo, y esa asimetría
+queda reflejada en el beneficio.
+
+### Fee de servicio
+
+El precio que se teclea es el que se le da al cliente **antes** del fee del 20 %, que se suma
+encima según el modelo de negocio original. La columna *Total cliente* de cada línea muestra el
+importe final ya con fee e IVA, así que no hay ambigüedad sobre lo que se factura. Si el precio
+acordado con el cliente ya es el final, basta con poner el fee a 0 en la operación (o en la
+temporada, desde Ajustes).
 
 Y a nivel de temporada:
 
@@ -58,10 +81,8 @@ Impuesto de sociedades  = Margen bruto × tipo de la temporada   (22 % en 2025, 
 Beneficio neto real     = Margen bruto − Impuesto de sociedades
 ```
 
-El fee, el IVA de venta y el IVA soportado son editables operación a operación (por ejemplo, un
-cliente no residente se factura sin IVA repercutido), y el tipo impositivo es editable por
-temporada tanto desde el dashboard como desde Ajustes. Con el filtro en «todas las temporadas»
-el impuesto se calcula temporada a temporada con su propio tipo y solo sobre márgenes positivos.
+Con el filtro en «todas las temporadas» el impuesto se calcula temporada a temporada con su propio
+tipo y solo sobre márgenes positivos.
 
 ## Preparar una temporada nueva
 
@@ -70,9 +91,9 @@ el impuesto se calcula temporada a temporada con su propio tipo y solo sobre má
    temporada anterior y revisar precio de venta y coste de cada servicio. Una tarifa sin precio
    de venta queda inactiva y no se ofrece hasta fijarlo.
 3. **Jugadores** → *Nuevo cliente* para cada jugador o agencia que entre.
-4. **Operaciones** → *Nueva operación*: se elige el cliente, y en cada línea de servicio se elige
-   una tarifa del tarifario, que rellena precio, coste y proveedor de golpe. Todo sigue siendo
-   editable a mano.
+4. **Operaciones** → *Nueva operación*: se elige el cliente y se van añadiendo servicios, desde el
+   tarifario (rellena nombre, precio, coste y proveedor de golpe) o a mano con *Servicio manual*.
+   Todo sigue siendo editable línea a línea.
 
 Una operación creada en una temporada distinta del año en curso nace con fecha 1 de enero de esa
 temporada, para no quedar fuera de su propio ejercicio.
@@ -152,5 +173,11 @@ src/
 
 Stack: React 18, TypeScript, Vite, Tailwind CSS 4 y Recharts. El estado importado o recuperado de
 `localStorage` se normaliza contra el modelo actual, de modo que un JSON antiguo o incompleto no
-rompe la aplicación: si le faltan las fichas de cliente, se reconstruyen a partir de los jugadores
-que ya aparezcan en las operaciones guardadas.
+rompe la aplicación. Las migraciones automáticas son dos: si faltan las fichas de cliente se
+reconstruyen a partir de los jugadores de las operaciones guardadas, y las operaciones del modelo
+antiguo —cinco servicios fijos con el IVA a nivel de operación— se convierten en líneas libres
+conservando sus importes.
+
+La exportación a CSV saca **una fila por línea de servicio**, con los datos de la operación
+repetidos, que es el formato que sirve tanto para cuadrar pagos a proveedores como para pivotar en
+una hoja de cálculo.

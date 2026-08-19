@@ -8,22 +8,62 @@ const numero = (v: unknown, def = 0): number =>
   typeof v === 'number' && Number.isFinite(v) ? v : def
 const texto = (v: unknown, def = ''): string => (typeof v === 'string' ? v : def)
 
-const LINEA_VACIA: LineaServicio = { cantidad: 0, tarifaVenta: 0, tarifaCoste: 0, proveedorId: null }
+/** Etiquetas de los servicios fijos del modelo antiguo, para la migración. */
+const NOMBRES_HEREDADOS: Record<string, string> = {
+  chef: 'Chef / Villa / Hotel',
+  campo: 'Campo',
+  coach: 'Entrenador / Coach',
+  gimnasio: 'Gimnasio',
+  fisio: 'Fisio',
+}
+
+let contadorLinea = 0
+const idLinea = () => `lin_mig_${(contadorLinea += 1)}`
+
+/**
+ * Convierte una operación del modelo antiguo —cinco servicios fijos y el IVA
+ * a nivel de operación— al actual, de líneas libres con su propio IVA.
+ * Los importes no cambian: cada servicio con datos pasa a ser una línea con
+ * el mismo precio, coste y tipo de IVA que tenía la operación.
+ */
+function migrarServiciosALineas(raw: Record<string, unknown>): LineaServicio[] {
+  const servicios = (raw.servicios ?? {}) as Record<string, Record<string, unknown> | undefined>
+  const ivaVentaPct = numero(raw.ivaVentaPct, 0.21)
+  const ivaCostePct = numero(raw.ivaCostePct, 0.21)
+
+  return Object.entries(servicios)
+    .filter(([, l]) => {
+      if (!l) return false
+      return numero(l.cantidad) !== 0 || numero(l.tarifaVenta) !== 0 || numero(l.tarifaCoste) !== 0
+    })
+    .map(([key, l]) => ({
+      id: idLinea(),
+      nombre: NOMBRES_HEREDADOS[key] ?? key,
+      cantidad: numero(l!.cantidad),
+      tarifaVenta: numero(l!.tarifaVenta),
+      tarifaCoste: numero(l!.tarifaCoste),
+      proveedorId: typeof l!.proveedorId === 'string' ? l!.proveedorId : null,
+      ivaVentaPct,
+      ivaCostePct,
+    }))
+}
+
+function normalizarLinea(raw: unknown): LineaServicio {
+  const l = (raw ?? {}) as Record<string, unknown>
+  return {
+    id: texto(l.id) || idLinea(),
+    nombre: texto(l.nombre),
+    cantidad: numero(l.cantidad),
+    tarifaVenta: numero(l.tarifaVenta),
+    tarifaCoste: numero(l.tarifaCoste),
+    proveedorId: typeof l.proveedorId === 'string' ? l.proveedorId : null,
+    ivaVentaPct: numero(l.ivaVentaPct),
+    ivaCostePct: numero(l.ivaCostePct),
+  }
+}
 
 function normalizarOperacion(raw: unknown, base: Operacion): Operacion {
   const o = (raw ?? {}) as Record<string, unknown>
-  const serviciosRaw = (o.servicios ?? {}) as Record<string, unknown>
-  const servicios = {} as Operacion['servicios']
-  for (const key of SERVICIOS) {
-    const l = (serviciosRaw[key] ?? {}) as Record<string, unknown>
-    servicios[key] = {
-      cantidad: numero(l.cantidad),
-      tarifaVenta: numero(l.tarifaVenta),
-      tarifaCoste: numero(l.tarifaCoste),
-      proveedorId: typeof l.proveedorId === 'string' ? l.proveedorId : null,
-    }
-    if (!serviciosRaw[key]) servicios[key] = { ...LINEA_VACIA }
-  }
   return {
     id: texto(o.id, base.id),
     numeroFactura: texto(o.numeroFactura, base.numeroFactura),
@@ -31,10 +71,8 @@ function normalizarOperacion(raw: unknown, base: Operacion): Operacion {
     temporada: numero(o.temporada, base.temporada),
     ubicacion: texto(o.ubicacion, base.ubicacion),
     jugador: texto(o.jugador, base.jugador),
-    servicios,
+    lineas: Array.isArray(o.lineas) ? o.lineas.map(normalizarLinea) : migrarServiciosALineas(o),
     feePct: numero(o.feePct, 0.2),
-    ivaVentaPct: numero(o.ivaVentaPct, 0.21),
-    ivaCostePct: numero(o.ivaCostePct, 0.21),
     pagado: numero(o.pagado),
     notas: texto(o.notas),
   }

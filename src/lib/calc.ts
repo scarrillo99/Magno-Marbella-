@@ -1,28 +1,34 @@
 import {
-  SERVICIOS,
   type AppState,
   type Liquidacion,
+  type LineaServicio,
   type Operacion,
-  type ServicioKey,
   type Temporada,
 } from '../types'
 
 /** Redondeo contable a 2 decimales, evitando el ruido binario de los float. */
 export const r2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100
 
-export interface DesgloseServicio {
-  key: ServicioKey
-  cantidad: number
-  tarifaVenta: number
-  tarifaCoste: number
-  subtotalVenta: number
-  subtotalCoste: number
-  margen: number
+export interface LineaCalculada {
+  linea: LineaServicio
+  /** Venta */
+  base: number
+  fee: number
+  baseImponible: number
+  iva: number
+  totalVenta: number
+  /** Coste */
+  baseCoste: number
+  ivaCoste: number
+  totalCoste: number
+  /** Resultado */
+  beneficio: number
+  margenPct: number
 }
 
 export interface OperacionCalculada {
   op: Operacion
-  servicios: DesgloseServicio[]
+  lineas: LineaCalculada[]
   /** Venta */
   subtotalVenta: number
   fee: number
@@ -42,60 +48,69 @@ export interface OperacionCalculada {
 }
 
 /**
- * Motor de cálculo de una operación.
+ * Cálculo de una línea de servicio.
  *
- *   Subtotal venta   = SUM(cantidad x tarifa cliente)
- *   Fee servicio     = Subtotal venta x fee%          (20% por defecto)
- *   Base imponible   = Subtotal venta + Fee
- *   IVA repercutido  = Base imponible x IVA%          (21% por defecto)
- *   Total venta      = Base imponible + IVA
+ *   Base venta      = cantidad x precio cliente
+ *   Fee servicio    = Base venta x fee%            (0 si la operación no lo aplica)
+ *   Base imponible  = Base venta + Fee
+ *   IVA repercutido = Base imponible x IVA venta%  (0 si se cobra sin IVA)
+ *   Total cliente   = Base imponible + IVA
  *
- *   Base coste       = SUM(cantidad x tarifa proveedor)
- *   IVA soportado    = Base coste x IVA%
- *   Total coste      = Base coste + IVA soportado
+ *   Base coste      = cantidad x coste proveedor
+ *   IVA soportado   = Base coste x IVA coste%
+ *   Total proveedor = Base coste + IVA soportado
  *
- *   Beneficio        = Total venta - Total coste proveedores
+ *   Beneficio       = Total cliente - Total proveedor
  */
-export function calcularOperacion(op: Operacion): OperacionCalculada {
-  const servicios: DesgloseServicio[] = SERVICIOS.map((key) => {
-    const l = op.servicios[key]
-    const subtotalVenta = r2(l.cantidad * l.tarifaVenta)
-    const subtotalCoste = r2(l.cantidad * l.tarifaCoste)
-    return {
-      key,
-      cantidad: l.cantidad,
-      tarifaVenta: l.tarifaVenta,
-      tarifaCoste: l.tarifaCoste,
-      subtotalVenta,
-      subtotalCoste,
-      margen: r2(subtotalVenta - subtotalCoste),
-    }
-  })
+export function calcularLinea(linea: LineaServicio, feePct: number): LineaCalculada {
+  const base = r2(linea.cantidad * linea.tarifaVenta)
+  const fee = r2(base * feePct)
+  const baseImponible = r2(base + fee)
+  const iva = r2(baseImponible * linea.ivaVentaPct)
+  const totalVenta = r2(baseImponible + iva)
 
-  const subtotalVenta = r2(servicios.reduce((a, s) => a + s.subtotalVenta, 0))
-  const fee = r2(subtotalVenta * op.feePct)
-  const baseImponible = r2(subtotalVenta + fee)
-  const ivaVenta = r2(baseImponible * op.ivaVentaPct)
-  const totalVenta = r2(baseImponible + ivaVenta)
-
-  const baseCoste = r2(servicios.reduce((a, s) => a + s.subtotalCoste, 0))
-  const ivaCoste = r2(baseCoste * op.ivaCostePct)
+  const baseCoste = r2(linea.cantidad * linea.tarifaCoste)
+  const ivaCoste = r2(baseCoste * linea.ivaCostePct)
   const totalCoste = r2(baseCoste + ivaCoste)
 
+  const beneficio = r2(totalVenta - totalCoste)
+
+  return {
+    linea,
+    base,
+    fee,
+    baseImponible,
+    iva,
+    totalVenta,
+    baseCoste,
+    ivaCoste,
+    totalCoste,
+    beneficio,
+    margenPct: totalVenta > 0 ? beneficio / totalVenta : 0,
+  }
+}
+
+/** Cálculo de una operación: la suma de sus líneas. */
+export function calcularOperacion(op: Operacion): OperacionCalculada {
+  const lineas = op.lineas.map((l) => calcularLinea(l, op.feePct))
+  const suma = (f: (l: LineaCalculada) => number) => r2(lineas.reduce((a, l) => a + f(l), 0))
+
+  const totalVenta = suma((l) => l.totalVenta)
+  const totalCoste = suma((l) => l.totalCoste)
   const beneficioOperativo = r2(totalVenta - totalCoste)
 
   return {
     op,
-    servicios,
-    subtotalVenta,
-    fee,
-    baseImponible,
-    ivaVenta,
+    lineas,
+    subtotalVenta: suma((l) => l.base),
+    fee: suma((l) => l.fee),
+    baseImponible: suma((l) => l.baseImponible),
+    ivaVenta: suma((l) => l.iva),
     totalVenta,
     pagado: r2(op.pagado),
     resta: r2(totalVenta - op.pagado),
-    baseCoste,
-    ivaCoste,
+    baseCoste: suma((l) => l.baseCoste),
+    ivaCoste: suma((l) => l.ivaCoste),
     totalCoste,
     beneficioOperativo,
     margenPct: totalVenta > 0 ? beneficioOperativo / totalVenta : 0,
@@ -253,7 +268,8 @@ export function agruparPorJugador(calculadas: OperacionCalculada[]): FilaJugador
 }
 
 export interface FilaServicio {
-  key: ServicioKey
+  /** Nombre del servicio, tal cual se escribió en las líneas. */
+  nombre: string
   cantidad: number
   ingreso: number
   coste: number
@@ -264,33 +280,34 @@ export interface FilaServicio {
 }
 
 /**
- * Reparte fee e IVA repercutido de cada operación entre sus servicios en
- * proporción a su subtotal, para que el ingreso por servicio sume el facturado.
+ * Agrupa por nombre de servicio. Las líneas llevan nombre libre, así que se
+ * normaliza mayúsculas y espacios para que "Campo MFC" y "campo mfc" no
+ * cuenten como dos servicios distintos; se conserva la primera grafía vista.
  */
 export function agruparPorServicio(calculadas: OperacionCalculada[]): FilaServicio[] {
-  const map = new Map<ServicioKey, { cantidad: number; ingreso: number; coste: number }>()
+  const map = new Map<string, { nombre: string; cantidad: number; ingreso: number; coste: number }>()
   let costeTotal = 0
 
   for (const c of calculadas) {
-    const factorVenta = c.subtotalVenta > 0 ? c.totalVenta / c.subtotalVenta : 0
-    const factorCoste = c.baseCoste > 0 ? c.totalCoste / c.baseCoste : 0
-    for (const s of c.servicios) {
-      if (s.subtotalVenta === 0 && s.subtotalCoste === 0) continue
-      const cur = map.get(s.key) ?? { cantidad: 0, ingreso: 0, coste: 0 }
-      cur.cantidad += s.cantidad
-      cur.ingreso += s.subtotalVenta * factorVenta
-      cur.coste += s.subtotalCoste * factorCoste
-      costeTotal += s.subtotalCoste * factorCoste
-      map.set(s.key, cur)
+    for (const l of c.lineas) {
+      if (l.totalVenta === 0 && l.totalCoste === 0) continue
+      const nombre = l.linea.nombre.trim() || 'Sin nombre'
+      const clave = nombre.toLowerCase()
+      const cur = map.get(clave) ?? { nombre, cantidad: 0, ingreso: 0, coste: 0 }
+      cur.cantidad += l.linea.cantidad
+      cur.ingreso += l.totalVenta
+      cur.coste += l.totalCoste
+      costeTotal += l.totalCoste
+      map.set(clave, cur)
     }
   }
 
-  return [...map.entries()]
-    .map(([key, v]) => {
+  return [...map.values()]
+    .map((v) => {
       const ingreso = r2(v.ingreso)
       const coste = r2(v.coste)
       return {
-        key,
+        nombre: v.nombre,
         cantidad: r2(v.cantidad),
         ingreso,
         coste,
@@ -323,14 +340,13 @@ export function agruparPorProveedor(
   let total = 0
 
   for (const c of calculadas) {
-    const factorCoste = c.baseCoste > 0 ? c.totalCoste / c.baseCoste : 0
-    for (const s of c.servicios) {
-      if (s.subtotalCoste === 0) continue
-      const pid = c.op.servicios[s.key].proveedorId ?? 'sin-asignar'
+    for (const l of c.lineas) {
+      if (l.totalCoste === 0) continue
+      const pid = l.linea.proveedorId ?? 'sin-asignar'
       const cur = map.get(pid) ?? { coste: 0, ops: new Set<string>() }
-      cur.coste += s.subtotalCoste * factorCoste
+      cur.coste += l.totalCoste
       cur.ops.add(c.op.id)
-      total += s.subtotalCoste * factorCoste
+      total += l.totalCoste
       map.set(pid, cur)
     }
   }
@@ -368,6 +384,47 @@ export function agruparPorProveedor(
   }
 
   return rows.sort((a, b) => b.coste - a.coste)
+}
+
+export interface PagoProveedor {
+  proveedorId: string
+  nombre: string
+  base: number
+  iva: number
+  total: number
+  conceptos: string[]
+}
+
+/**
+ * Lo que hay que pagar a cada proveedor por una operación concreta.
+ * Es la vista que se necesita para liquidar: importe, IVA y por qué conceptos.
+ */
+export function pagosPorProveedor(
+  calc: OperacionCalculada,
+  proveedores: { id: string; nombre: string }[],
+): PagoProveedor[] {
+  const map = new Map<string, PagoProveedor>()
+  for (const l of calc.lineas) {
+    if (l.totalCoste === 0) continue
+    const pid = l.linea.proveedorId ?? 'sin-asignar'
+    const cur = map.get(pid) ?? {
+      proveedorId: pid,
+      nombre: proveedores.find((p) => p.id === pid)?.nombre ?? 'Sin proveedor asignado',
+      base: 0,
+      iva: 0,
+      total: 0,
+      conceptos: [],
+    }
+    cur.base += l.baseCoste
+    cur.iva += l.ivaCoste
+    cur.total += l.totalCoste
+    const nombre = l.linea.nombre.trim()
+    if (nombre && !cur.conceptos.includes(nombre)) cur.conceptos.push(nombre)
+    map.set(pid, cur)
+  }
+  return [...map.values()]
+    .map((p) => ({ ...p, base: r2(p.base), iva: r2(p.iva), total: r2(p.total) }))
+    .sort((a, b) => b.total - a.total)
 }
 
 export interface PuntoTemporal {

@@ -1,22 +1,36 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Info } from 'lucide-react'
+import { Banknote, CreditCard, Info, Plus, Trash2, UserPlus } from 'lucide-react'
 import {
-  SERVICIOS,
   SERVICIO_LABEL,
-  SERVICIO_UNIDAD,
+  TIPOS_IVA,
+  type Cliente,
   type LineaServicio,
   type Operacion,
-  type ServicioKey,
 } from '../types'
-import { calcularOperacion, r2 } from '../lib/calc'
+import { calcularOperacion, pagosPorProveedor, r2 } from '../lib/calc'
 import { eur, pct } from '../lib/format'
+import { uid } from '../lib/id'
 import { useStore } from '../store/store'
 import { Boton, Campo, Modal, NumeroInput, Selector, Texto } from '../components/ui'
 import { ClienteModal, clienteVacio } from '../components/ClienteModal'
-import { UserPlus } from 'lucide-react'
-import type { Cliente } from '../types'
 
-/** Ficha completa de una operación: cabecera, líneas de servicio, venta, cobro y coste. */
+const OPCIONES_IVA = TIPOS_IVA.map((v) => ({
+  valor: String(v),
+  texto: v === 0 ? 'Sin IVA' : `${Math.round(v * 100)} %`,
+}))
+
+const lineaVacia = (ivaPct: number): LineaServicio => ({
+  id: uid('lin'),
+  nombre: '',
+  cantidad: 1,
+  tarifaVenta: 0,
+  tarifaCoste: 0,
+  proveedorId: null,
+  ivaVentaPct: ivaPct,
+  ivaCostePct: ivaPct,
+})
+
+/** Ficha completa de una operación: cabecera, líneas de servicio y resultado. */
 export function OperacionModal({
   operacion,
   abierto,
@@ -35,45 +49,60 @@ export function OperacionModal({
   }, [operacion])
 
   const calc = useMemo(() => (borrador ? calcularOperacion(borrador) : null), [borrador])
+  const pagos = useMemo(
+    () => (calc ? pagosPorProveedor(calc, estado.proveedores) : []),
+    [calc, estado.proveedores],
+  )
 
   if (!borrador || !calc) return null
 
+  const ivaTemporada = estado.temporadas.find((t) => t.year === borrador.temporada)?.ivaPct ?? 0.21
   const set = (cambios: Partial<Operacion>) => setBorrador({ ...borrador, ...cambios })
 
-  const setLinea = (key: ServicioKey, cambios: Partial<LineaServicio>) =>
+  const setLinea = (id: string, cambios: Partial<LineaServicio>) =>
     setBorrador({
       ...borrador,
-      servicios: { ...borrador.servicios, [key]: { ...borrador.servicios[key], ...cambios } },
+      lineas: borrador.lineas.map((l) => (l.id === id ? { ...l, ...cambios } : l)),
     })
+
+  const anadirLinea = (linea: LineaServicio) =>
+    setBorrador({ ...borrador, lineas: [...borrador.lineas, linea] })
+
+  const quitarLinea = (id: string) =>
+    setBorrador({ ...borrador, lineas: borrador.lineas.filter((l) => l.id !== id) })
 
   const tarifasTemporada = estado.tarifas.filter((t) => t.temporada === borrador.temporada && t.activa)
 
-  /** Aplica una tarifa del tarifario a una línea: precio, coste y proveedor. */
-  const aplicarTarifa = (key: ServicioKey, tarifaId: string) => {
+  const anadirDesdeTarifario = (tarifaId: string) => {
     const t = tarifasTemporada.find((x) => x.id === tarifaId)
     if (!t) return
-    setLinea(key, {
+    anadirLinea({
+      id: uid('lin'),
+      nombre: t.concepto,
+      cantidad: 1,
       tarifaVenta: t.tarifaVenta,
       tarifaCoste: t.tarifaCoste,
       proveedorId: t.proveedorId,
-      // Una línea recién elegida sin cantidad arranca en 1 para que sume.
-      ...(borrador.servicios[key].cantidad === 0 ? { cantidad: 1 } : {}),
+      ivaVentaPct: ivaVentaComun ?? ivaTemporada,
+      ivaCostePct: ivaTemporada,
     })
   }
 
-  /** Tarifa cuyo precio y coste coinciden con lo que ya tiene la línea. */
-  const tarifaCoincidente = (key: ServicioKey) => {
-    const l = borrador.servicios[key]
-    return (
-      tarifasTemporada.find(
-        (t) =>
-          t.servicio === key &&
-          t.tarifaVenta === l.tarifaVenta &&
-          t.tarifaCoste === l.tarifaCoste &&
-          t.proveedorId === l.proveedorId,
-      )?.id ?? ''
-    )
-  }
+  /** IVA de venta si todas las líneas coinciden; `null` si están mezcladas. */
+  const ivaVentaComun: number | null =
+    borrador.lineas.length === 0
+      ? ivaTemporada
+      : borrador.lineas.every((l) => l.ivaVentaPct === borrador.lineas[0].ivaVentaPct)
+        ? borrador.lineas[0].ivaVentaPct
+        : null
+
+  const aplicarIvaVentaATodas = (valor: number) =>
+    setBorrador({ ...borrador, lineas: borrador.lineas.map((l) => ({ ...l, ivaVentaPct: valor })) })
+
+  const opcionesProveedor = [
+    { valor: '', texto: '— Sin proveedor —' },
+    ...estado.proveedores.filter((p) => p.activo).map((p) => ({ valor: p.id, texto: p.nombre })),
+  ]
 
   const cliente = estado.clientes.find(
     (c) => c.nombre.trim().toLowerCase() === borrador.jugador.trim().toLowerCase(),
@@ -86,13 +115,6 @@ export function OperacionModal({
       ? 'Sin ficha de cliente. Pulsa + para darlo de alta.'
       : undefined
 
-  const opcionesProveedor = [
-    { valor: '', texto: '— Sin proveedor —' },
-    ...estado.proveedores
-      .filter((p) => p.activo)
-      .map((p) => ({ valor: p.id, texto: p.nombre })),
-  ]
-
   const guardar = () => {
     guardarOperacion(borrador)
     onCerrar()
@@ -104,7 +126,7 @@ export function OperacionModal({
       onCerrar={onCerrar}
       titulo={borrador.jugador ? `Operación · ${borrador.jugador}` : 'Nueva operación'}
       descripcion={`${borrador.numeroFactura || 'Sin número'} · temporada ${borrador.temporada}`}
-      ancho="max-w-5xl"
+      ancho="max-w-7xl"
       pie={
         <>
           <span className="mr-auto text-xs text-tinta-2">
@@ -130,7 +152,7 @@ export function OperacionModal({
             <Texto
               value={borrador.numeroFactura}
               onChange={(e) => set({ numeroFactura: e.target.value })}
-              placeholder="MM-2026-001"
+              placeholder="MM-2027-001"
             />
           </Campo>
           <Campo etiqueta="Fecha">
@@ -143,7 +165,7 @@ export function OperacionModal({
               opciones={estado.temporadas.map((t) => ({ valor: String(t.year), texto: String(t.year) }))}
             />
           </Campo>
-          <Campo etiqueta="Jugador / cliente" ayuda={fichaCliente ? fichaCliente : undefined}>
+          <Campo etiqueta="Jugador / cliente" ayuda={fichaCliente}>
             <div className="flex gap-1.5">
               <Texto
                 value={borrador.jugador}
@@ -191,202 +213,312 @@ export function OperacionModal({
             <NumeroInput
               valor={borrador.pagado}
               onValor={(n) => set({ pagado: n })}
+              decimalesMinimos={2}
               className="campo cifra text-right"
               sufijo="€"
             />
           </Campo>
         </div>
 
+        {/* ------------------------------ Forma de cobro -------------------------- */}
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-borde bg-panel-2/40 p-3">
+          <span className="text-[11px] font-medium uppercase tracking-wider text-tinta-3">
+            Forma de cobro
+          </span>
+          <div className="flex gap-1.5">
+            <BotonCobro
+              activo={ivaVentaComun === ivaTemporada}
+              icono={<CreditCard size={13} />}
+              texto={`Transferencia · con IVA ${pct(ivaTemporada, 0)}`}
+              onClick={() => aplicarIvaVentaATodas(ivaTemporada)}
+            />
+            <BotonCobro
+              activo={ivaVentaComun === 0}
+              icono={<Banknote size={13} />}
+              texto="Efectivo · sin IVA"
+              onClick={() => aplicarIvaVentaATodas(0)}
+            />
+          </div>
+          <span className="text-[11px] text-tinta-3">
+            {ivaVentaComun === null
+              ? 'Líneas con IVA distinto: revisa la columna «IVA» de cada servicio.'
+              : 'Cambia el IVA de todas las líneas a la vez; cada una se puede ajustar por separado.'}
+          </span>
+          <label className="ml-auto flex items-center gap-2 text-[11px] text-tinta-3">
+            Fee de servicio
+            <NumeroInput
+              valor={r2(borrador.feePct * 100)}
+              onValor={(n) => set({ feePct: n / 100 })}
+              className="celda-edit w-full text-right"
+              claseContenedor="w-20"
+              sufijo="%"
+              aria-label="Fee de servicio"
+            />
+          </label>
+        </div>
+
         {/* -------------------------- Líneas de servicio -------------------------- */}
         <div>
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-tinta-3">
-            Desglose de servicios
+            Servicios de la operación
           </h3>
-          <div className="overflow-x-auto rounded-xl border border-borde">
-            <table className="w-full min-w-[1020px] text-sm">
-              <thead>
-                <tr className="border-b border-borde bg-panel-2/60 text-[11px] uppercase tracking-wider text-tinta-3">
-                  <th className="px-3 py-2 text-left font-medium">Servicio</th>
-                  <th className="px-2 py-2 text-left font-medium">Tarifa</th>
-                  <th className="px-2 py-2 text-right font-medium">Cantidad</th>
-                  <th className="px-2 py-2 text-right font-medium">Tarifa cliente</th>
-                  <th className="px-2 py-2 text-right font-medium">Subtotal venta</th>
-                  <th className="px-2 py-2 text-left font-medium">Proveedor</th>
-                  <th className="px-2 py-2 text-right font-medium">Tarifa proveedor</th>
-                  <th className="px-2 py-2 text-right font-medium">Subtotal coste</th>
-                  <th className="px-3 py-2 text-right font-medium">Margen</th>
-                </tr>
-              </thead>
-              <tbody>
-                {SERVICIOS.map((key) => {
-                  const linea = borrador.servicios[key]
-                  const d = calc.servicios.find((s) => s.key === key)!
-                  const vacia = linea.cantidad === 0
-                  return (
-                    <tr
-                      key={key}
-                      className={`border-b border-borde/60 last:border-0 ${vacia ? 'opacity-55' : ''}`}
-                    >
-                      <td className="px-3 py-2">
-                        <span className="text-tinta">{SERVICIO_LABEL[key]}</span>
-                        <span className="ml-1 text-[11px] text-tinta-3">({SERVICIO_UNIDAD[key]})</span>
-                      </td>
-                      <td className="px-2 py-2">
-                        {(() => {
-                          const disponibles = tarifasTemporada.filter((t) => t.servicio === key)
-                          return (
-                            <select
-                              value={tarifaCoincidente(key)}
-                              onChange={(e) => aplicarTarifa(key, e.target.value)}
-                              disabled={disponibles.length === 0}
-                              className="celda-edit min-w-[196px] disabled:opacity-50"
-                              aria-label={`Tarifa de ${SERVICIO_LABEL[key]}`}
-                            >
-                              <option value="" className="bg-panel">
-                                {disponibles.length === 0
-                                  ? 'Sin tarifas en el tarifario'
-                                  : '— Precio manual —'}
+
+          {borrador.lineas.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-borde px-4 py-6 text-center text-xs text-tinta-3">
+              Todavía no hay servicios. Añade uno del tarifario o créalo a mano.
+            </p>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-borde">
+              <table className="w-full min-w-[1120px] text-sm">
+                <thead>
+                  <tr className="border-b border-borde bg-panel-2/60 text-[11px] uppercase tracking-wider text-tinta-3">
+                    <th className="px-3 py-2 text-left font-medium">Servicio</th>
+                    <th className="px-2 py-2 text-right font-medium">Cant.</th>
+                    <th className="px-2 py-2 text-right font-medium">Precio cliente</th>
+                    <th className="px-2 py-2 text-center font-medium">IVA</th>
+                    <th className="px-2 py-2 text-right font-medium">Total cliente</th>
+                    <th className="px-2 py-2 text-left font-medium">Proveedor</th>
+                    <th className="px-2 py-2 text-right font-medium">Coste ud.</th>
+                    <th className="px-2 py-2 text-center font-medium">IVA</th>
+                    <th className="px-2 py-2 text-right font-medium">Total proveedor</th>
+                    <th className="px-2 py-2 text-right font-medium">Beneficio</th>
+                    <th className="px-3 py-2" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {calc.lineas.map((lc) => {
+                    const l = lc.linea
+                    return (
+                      <tr key={l.id} className="border-b border-borde/60 last:border-0">
+                        <td className="px-3 py-2">
+                          <input
+                            value={l.nombre}
+                            onChange={(e) => setLinea(l.id, { nombre: e.target.value })}
+                            placeholder="Nombre del servicio"
+                            list="lista-servicios"
+                            className="celda-edit min-w-[172px]"
+                            aria-label="Nombre del servicio"
+                          />
+                        </td>
+                        <td className="px-2 py-2">
+                          <NumeroInput
+                            valor={l.cantidad}
+                            onValor={(n) => setLinea(l.id, { cantidad: n })}
+                            className="celda-edit w-full text-right"
+                            claseContenedor="w-16"
+                            aria-label={`Cantidad de ${l.nombre || 'la línea'}`}
+                          />
+                        </td>
+                        <td className="px-2 py-2">
+                          <NumeroInput
+                            valor={l.tarifaVenta}
+                            onValor={(n) => setLinea(l.id, { tarifaVenta: n })}
+                            decimalesMinimos={2}
+                            className="celda-edit w-full text-right"
+                            claseContenedor="w-24"
+                            aria-label={`Precio al cliente de ${l.nombre || 'la línea'}`}
+                          />
+                        </td>
+                        <td className="px-2 py-2">
+                          <select
+                            value={String(l.ivaVentaPct)}
+                            onChange={(e) => setLinea(l.id, { ivaVentaPct: Number(e.target.value) })}
+                            className={`celda-edit w-[86px] ${l.ivaVentaPct === 0 ? 'text-oro' : ''}`}
+                            aria-label={`IVA al cliente de ${l.nombre || 'la línea'}`}
+                          >
+                            {OPCIONES_IVA.map((o) => (
+                              <option key={o.valor} value={o.valor} className="bg-panel">
+                                {o.texto}
                               </option>
-                              {disponibles.map((t) => (
-                                <option key={t.id} value={t.id} className="bg-panel">
-                                  {t.concepto} · {t.tarifaVenta} €
-                                </option>
-                              ))}
-                            </select>
-                          )
-                        })()}
-                      </td>
-                      <td className="px-2 py-2">
-                        <NumeroInput
-                          valor={linea.cantidad}
-                          onValor={(n) => setLinea(key, { cantidad: n })}
-                          className="celda-edit text-right"
-                          aria-label={`Cantidad de ${SERVICIO_LABEL[key]}`}
-                        />
-                      </td>
-                      <td className="px-2 py-2">
-                        <NumeroInput
-                          valor={linea.tarifaVenta}
-                          onValor={(n) => setLinea(key, { tarifaVenta: n })}
-                          className="celda-edit text-right"
-                          aria-label={`Tarifa cliente de ${SERVICIO_LABEL[key]}`}
-                        />
-                      </td>
-                      <td className="cifra px-2 py-2 text-right text-tinta">{eur(d.subtotalVenta)}</td>
-                      <td className="px-2 py-2">
-                        <select
-                          value={linea.proveedorId ?? ''}
-                          onChange={(e) => {
-                            const id = e.target.value || null
-                            const prov = estado.proveedores.find((p) => p.id === id)
-                            setLinea(key, {
-                              proveedorId: id,
-                              // Al asignar proveedor sin tarifa fijada, proponemos la habitual.
-                              ...(prov && linea.tarifaCoste === 0
-                                ? { tarifaCoste: prov.tarifaHabitual }
-                                : {}),
-                            })
-                          }}
-                          className="celda-edit min-w-[150px]"
-                          aria-label={`Proveedor de ${SERVICIO_LABEL[key]}`}
+                            ))}
+                          </select>
+                        </td>
+                        <td className="cifra px-2 py-2 text-right font-medium text-oro">
+                          {eur(lc.totalVenta)}
+                        </td>
+                        <td className="px-2 py-2">
+                          <select
+                            value={l.proveedorId ?? ''}
+                            onChange={(e) => {
+                              const id = e.target.value || null
+                              const prov = estado.proveedores.find((p) => p.id === id)
+                              setLinea(l.id, {
+                                proveedorId: id,
+                                ...(prov && l.tarifaCoste === 0 ? { tarifaCoste: prov.tarifaHabitual } : {}),
+                              })
+                            }}
+                            className="celda-edit min-w-[142px]"
+                            aria-label={`Proveedor de ${l.nombre || 'la línea'}`}
+                          >
+                            {opcionesProveedor.map((o) => (
+                              <option key={o.valor} value={o.valor} className="bg-panel">
+                                {o.texto}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-2 py-2">
+                          <NumeroInput
+                            valor={l.tarifaCoste}
+                            onValor={(n) => setLinea(l.id, { tarifaCoste: n })}
+                            decimalesMinimos={2}
+                            className="celda-edit w-full text-right"
+                            claseContenedor="w-24"
+                            aria-label={`Coste de proveedor de ${l.nombre || 'la línea'}`}
+                          />
+                        </td>
+                        <td className="px-2 py-2">
+                          <select
+                            value={String(l.ivaCostePct)}
+                            onChange={(e) => setLinea(l.id, { ivaCostePct: Number(e.target.value) })}
+                            className={`celda-edit w-[86px] ${l.ivaCostePct === 0 ? 'text-oro' : ''}`}
+                            aria-label={`IVA del proveedor de ${l.nombre || 'la línea'}`}
+                          >
+                            {OPCIONES_IVA.map((o) => (
+                              <option key={o.valor} value={o.valor} className="bg-panel">
+                                {o.texto}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="cifra px-2 py-2 text-right text-rojo">{eur(lc.totalCoste)}</td>
+                        <td
+                          className={`cifra px-2 py-2 text-right font-medium ${
+                            lc.beneficio >= 0 ? 'text-verde' : 'text-rojo'
+                          }`}
                         >
-                          {opcionesProveedor.map((o) => (
-                            <option key={o.valor} value={o.valor} className="bg-panel">
-                              {o.texto}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-2 py-2">
-                        <NumeroInput
-                          valor={linea.tarifaCoste}
-                          onValor={(n) => setLinea(key, { tarifaCoste: n })}
-                          className="celda-edit text-right"
-                          aria-label={`Tarifa proveedor de ${SERVICIO_LABEL[key]}`}
-                        />
-                      </td>
-                      <td className="cifra px-2 py-2 text-right text-tinta-2">{eur(d.subtotalCoste)}</td>
-                      <td
-                        className={`cifra px-3 py-2 text-right font-medium ${
-                          d.margen >= 0 ? 'text-verde' : 'text-rojo'
-                        }`}
-                      >
-                        {eur(d.margen)}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                          {eur(lc.beneficio)}
+                        </td>
+                        <td className="px-3 py-2">
+                          <button
+                            type="button"
+                            onClick={() => quitarLinea(l.id)}
+                            className="rounded p-1.5 text-tinta-3 transition-colors hover:bg-panel-2 hover:text-rojo"
+                            aria-label={`Quitar ${l.nombre || 'la línea'}`}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <datalist id="lista-servicios">
+            {[
+              ...new Set([
+                ...tarifasTemporada.map((t) => t.concepto),
+                ...Object.values(SERVICIO_LABEL),
+                ...estado.operaciones.flatMap((o) => o.lineas.map((l) => l.nombre)),
+              ]),
+            ]
+              .filter(Boolean)
+              .map((n) => (
+                <option key={n} value={n} />
+              ))}
+          </datalist>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Selector
+              value=""
+              onChange={(e) => {
+                anadirDesdeTarifario(e.target.value)
+                e.target.value = ''
+              }}
+              className="w-auto"
+              aria-label="Añadir servicio desde el tarifario"
+              disabled={tarifasTemporada.length === 0}
+              opciones={[
+                {
+                  valor: '',
+                  texto:
+                    tarifasTemporada.length === 0
+                      ? `Sin tarifas para ${borrador.temporada}`
+                      : 'Añadir desde el tarifario…',
+                },
+                ...tarifasTemporada.map((t) => ({
+                  valor: t.id,
+                  texto: `${t.concepto} · ${eur(t.tarifaVenta)}`,
+                })),
+              ]}
+            />
+            <Boton onClick={() => anadirLinea(lineaVacia(ivaVentaComun ?? ivaTemporada))}>
+              <Plus size={13} /> Servicio manual
+            </Boton>
           </div>
         </div>
 
-        {/* ------------------------ Venta / cobro / coste ------------------------- */}
+        {/* --------------------- Venta / coste / resultado ------------------------ */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <div className="rounded-xl border border-borde bg-panel-2/40 p-4">
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-oro">Venta al cliente</h3>
-            <div className="mb-3 grid grid-cols-2 gap-2">
-              <Campo etiqueta="Fee servicio %">
-                <NumeroInput
-                  valor={r2(borrador.feePct * 100)}
-                  onValor={(n) => set({ feePct: n / 100 })}
-                  className="campo cifra text-right"
-                  sufijo="%"
-                />
-              </Campo>
-              <Campo etiqueta="IVA venta %">
-                <NumeroInput
-                  valor={r2(borrador.ivaVentaPct * 100)}
-                  onValor={(n) => set({ ivaVentaPct: n / 100 })}
-                  className="campo cifra text-right"
-                  sufijo="%"
-                />
-              </Campo>
-            </div>
-            <Fila label="Subtotal venta" valor={calc.subtotalVenta} />
-            <Fila label={`Fee servicio (${pct(borrador.feePct, 0)})`} valor={calc.fee} />
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-oro">
+              Lo que se cobra al cliente
+            </h3>
+            <Fila label="Suma de servicios" valor={calc.subtotalVenta} />
+            <Fila label={`Fee de servicio (${pct(borrador.feePct, 0)})`} valor={calc.fee} />
             <Fila label="Base imponible" valor={calc.baseImponible} fuerte />
-            <Fila label={`IVA (${pct(borrador.ivaVentaPct, 0)})`} valor={calc.ivaVenta} />
-            <Fila label="Total venta" valor={calc.totalVenta} destacado />
+            <Fila label="IVA repercutido" valor={calc.ivaVenta} />
+            <Fila label="Total a cobrar" valor={calc.totalVenta} destacado />
+            <div className="my-3 border-t border-borde" />
+            <Fila label="Importe cobrado" valor={calc.pagado} />
+            <Fila
+              label="Pendiente de cobro"
+              valor={calc.resta}
+              fuerte
+              tono={calc.resta > 0.005 ? 'rojo' : 'verde'}
+            />
           </div>
 
           <div className="rounded-xl border border-borde bg-panel-2/40 p-4">
             <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-rojo">
-              Coste de proveedores
+              Lo que se paga a proveedores
             </h3>
-            <div className="mb-3">
-              <Campo etiqueta="IVA soportado %">
-                <NumeroInput
-                  valor={r2(borrador.ivaCostePct * 100)}
-                  onValor={(n) => set({ ivaCostePct: n / 100 })}
-                  className="campo cifra text-right"
-                  sufijo="%"
-                />
-              </Campo>
+            {pagos.length === 0 ? (
+              <p className="text-xs text-tinta-3">Ninguna línea tiene coste de proveedor.</p>
+            ) : (
+              <ul className="space-y-2">
+                {pagos.map((p) => (
+                  <li key={p.proveedorId} className="border-b border-borde/60 pb-2 last:border-0 last:pb-0">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-xs font-medium text-tinta">{p.nombre}</span>
+                      <span className="cifra text-sm font-semibold text-rojo">{eur(p.total)}</span>
+                    </div>
+                    <p className="text-[11px] text-tinta-3">
+                      {p.conceptos.join(', ')} · base {eur(p.base)}
+                      {p.iva > 0 ? ` + IVA ${eur(p.iva)}` : ' · sin IVA'}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="mt-3 border-t border-borde pt-2">
+              <Fila label="Total a proveedores" valor={calc.totalCoste} destacado tono="rojo" />
             </div>
-            <Fila label="Base de coste" valor={calc.baseCoste} fuerte />
-            <Fila label={`IVA (${pct(borrador.ivaCostePct, 0)})`} valor={calc.ivaCoste} />
-            <Fila label="Total coste proveedores" valor={calc.totalCoste} destacado tono="rojo" />
           </div>
 
           <div className="rounded-xl border border-borde bg-panel-2/40 p-4">
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-verde">
-              Cobro y resultado
-            </h3>
-            <Fila label="Total a cobrar" valor={calc.totalVenta} />
-            <Fila label="Importe pagado" valor={calc.pagado} />
-            <Fila label="Resta pendiente" valor={calc.resta} fuerte tono={calc.resta > 0 ? 'rojo' : 'verde'} />
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-verde">Resultado</h3>
+            <Fila label="Total cobrado al cliente" valor={calc.totalVenta} />
+            <Fila label="Total pagado a proveedores" valor={-calc.totalCoste} />
             <div className="my-3 border-t border-borde" />
             <Fila
-              label="Beneficio operativo"
+              label="Beneficio de la operación"
               valor={calc.beneficioOperativo}
               destacado
               tono={calc.beneficioOperativo >= 0 ? 'verde' : 'rojo'}
             />
+            <p className="mt-1 text-xs text-tinta-2">Margen del {pct(calc.margenPct)}</p>
+            <div className="my-3 border-t border-borde" />
+            <Fila label="IVA repercutido" valor={calc.ivaVenta} />
+            <Fila label="IVA soportado" valor={-calc.ivaCoste} />
+            <Fila label="IVA a liquidar" valor={r2(calc.ivaVenta - calc.ivaCoste)} fuerte />
             <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-relaxed text-tinta-3">
               <Info size={12} className="mt-0.5 shrink-0" />
-              Total venta menos total pagado a proveedores. El impuesto de sociedades se aplica de forma
-              agregada por temporada en el dashboard.
+              El impuesto de sociedades no se aplica aquí: se calcula sobre el margen de toda la temporada,
+              en el dashboard.
             </p>
           </div>
         </div>
@@ -412,6 +544,34 @@ export function OperacionModal({
         onCerrar={() => setClienteNuevo(null)}
       />
     </Modal>
+  )
+}
+
+function BotonCobro({
+  activo,
+  icono,
+  texto,
+  onClick,
+}: {
+  activo: boolean
+  icono: React.ReactNode
+  texto: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={activo}
+      className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${
+        activo
+          ? 'border-oro/40 bg-oro/12 text-oro'
+          : 'border-borde text-tinta-2 hover:border-borde-fuerte hover:text-tinta'
+      }`}
+    >
+      {icono}
+      {texto}
+    </button>
   )
 }
 
