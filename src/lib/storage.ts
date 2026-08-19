@@ -1,4 +1,4 @@
-import { SERVICIOS, type AppState, type LineaServicio, type Operacion } from '../types'
+import { SERVICIOS, type AppState, type LineaServicio, type Operacion, type ServicioKey } from '../types'
 import { estadoInicial } from '../data/seed'
 import { descargarFichero, nombreConFecha, type ResultadoDescarga } from './descarga'
 
@@ -89,6 +89,37 @@ export function normalizarEstado(raw: unknown): AppState {
           estado: l?.estado === 'pagada' ? 'pagada' : 'pendiente',
         }))
       : base.liquidaciones,
+    clientes: Array.isArray(s.clientes)
+      ? s.clientes.map((c) => ({
+          id: texto(c?.id) || `cli_${texto(c?.nombre).toLowerCase()}`,
+          nombre: texto(c?.nombre),
+          agencia: texto(c?.agencia),
+          contacto: texto(c?.contacto),
+          club: texto(c?.club),
+          notas: texto(c?.notas),
+          activo: c?.activo !== false,
+        }))
+      : // Estado anterior al registro de clientes: se reconstruye a partir de
+        // los jugadores que ya aparecen en las operaciones guardadas.
+        clientesDesdeOperaciones(
+          Array.isArray(s.operaciones) ? (s.operaciones as Operacion[]) : base.operaciones,
+          base.clientes,
+        ),
+    tarifas: Array.isArray(s.tarifas)
+      ? s.tarifas.map((t) => ({
+          id: texto(t?.id),
+          temporada: numero(t?.temporada, 2027),
+          servicio: (SERVICIOS as readonly string[]).includes(texto(t?.servicio))
+            ? (texto(t?.servicio) as ServicioKey)
+            : 'campo',
+          proveedorId: typeof t?.proveedorId === 'string' ? t.proveedorId : null,
+          concepto: texto(t?.concepto),
+          tarifaVenta: numero(t?.tarifaVenta),
+          tarifaCoste: numero(t?.tarifaCoste),
+          notas: texto(t?.notas),
+          activa: t?.activa !== false,
+        }))
+      : base.tarifas,
     ubicaciones: Array.isArray(s.ubicaciones) && s.ubicaciones.length > 0
       ? s.ubicaciones.filter((u): u is string => typeof u === 'string')
       : base.ubicaciones,
@@ -96,6 +127,28 @@ export function normalizarEstado(raw: unknown): AppState {
       ? (s.resumenesDeclarados as AppState['resumenesDeclarados'])
       : base.resumenesDeclarados,
   }
+}
+
+/** Fichas de cliente derivadas de los jugadores presentes en las operaciones. */
+function clientesDesdeOperaciones(
+  operaciones: Operacion[],
+  semilla: AppState['clientes'],
+): AppState['clientes'] {
+  const porNombre = new Map(semilla.map((c) => [c.nombre.toLowerCase(), c]))
+  for (const op of operaciones) {
+    const nombre = texto(op?.jugador).trim()
+    if (!nombre || porNombre.has(nombre.toLowerCase())) continue
+    porNombre.set(nombre.toLowerCase(), {
+      id: `cli_${nombre.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`,
+      nombre,
+      agencia: '',
+      contacto: '',
+      club: '',
+      notas: '',
+      activo: true,
+    })
+  }
+  return [...porNombre.values()]
 }
 
 export function cargarEstado(): AppState {

@@ -12,6 +12,9 @@ import { calcularOperacion, r2 } from '../lib/calc'
 import { eur, pct } from '../lib/format'
 import { useStore } from '../store/store'
 import { Boton, Campo, Modal, NumeroInput, Selector, Texto } from '../components/ui'
+import { ClienteModal, clienteVacio } from '../components/ClienteModal'
+import { UserPlus } from 'lucide-react'
+import type { Cliente } from '../types'
 
 /** Ficha completa de una operación: cabecera, líneas de servicio, venta, cobro y coste. */
 export function OperacionModal({
@@ -23,8 +26,9 @@ export function OperacionModal({
   abierto: boolean
   onCerrar: () => void
 }) {
-  const { estado, guardarOperacion } = useStore()
+  const { estado, guardarOperacion, guardarCliente } = useStore()
   const [borrador, setBorrador] = useState<Operacion | null>(operacion)
+  const [clienteNuevo, setClienteNuevo] = useState<Cliente | null>(null)
 
   useEffect(() => {
     setBorrador(operacion)
@@ -41,6 +45,46 @@ export function OperacionModal({
       ...borrador,
       servicios: { ...borrador.servicios, [key]: { ...borrador.servicios[key], ...cambios } },
     })
+
+  const tarifasTemporada = estado.tarifas.filter((t) => t.temporada === borrador.temporada && t.activa)
+
+  /** Aplica una tarifa del tarifario a una línea: precio, coste y proveedor. */
+  const aplicarTarifa = (key: ServicioKey, tarifaId: string) => {
+    const t = tarifasTemporada.find((x) => x.id === tarifaId)
+    if (!t) return
+    setLinea(key, {
+      tarifaVenta: t.tarifaVenta,
+      tarifaCoste: t.tarifaCoste,
+      proveedorId: t.proveedorId,
+      // Una línea recién elegida sin cantidad arranca en 1 para que sume.
+      ...(borrador.servicios[key].cantidad === 0 ? { cantidad: 1 } : {}),
+    })
+  }
+
+  /** Tarifa cuyo precio y coste coinciden con lo que ya tiene la línea. */
+  const tarifaCoincidente = (key: ServicioKey) => {
+    const l = borrador.servicios[key]
+    return (
+      tarifasTemporada.find(
+        (t) =>
+          t.servicio === key &&
+          t.tarifaVenta === l.tarifaVenta &&
+          t.tarifaCoste === l.tarifaCoste &&
+          t.proveedorId === l.proveedorId,
+      )?.id ?? ''
+    )
+  }
+
+  const cliente = estado.clientes.find(
+    (c) => c.nombre.trim().toLowerCase() === borrador.jugador.trim().toLowerCase(),
+  )
+  const fichaCliente = cliente
+    ? [cliente.agencia && `Agencia: ${cliente.agencia}`, cliente.club && `Club: ${cliente.club}`]
+        .filter(Boolean)
+        .join(' · ') || 'Cliente registrado'
+    : borrador.jugador.trim()
+      ? 'Sin ficha de cliente. Pulsa + para darlo de alta.'
+      : undefined
 
   const opcionesProveedor = [
     { valor: '', texto: '— Sin proveedor —' },
@@ -99,17 +143,35 @@ export function OperacionModal({
               opciones={estado.temporadas.map((t) => ({ valor: String(t.year), texto: String(t.year) }))}
             />
           </Campo>
-          <Campo etiqueta="Jugador / cliente">
-            <Texto
-              value={borrador.jugador}
-              onChange={(e) => set({ jugador: e.target.value })}
-              placeholder="Nombre del jugador"
-              list="lista-jugadores"
-            />
+          <Campo etiqueta="Jugador / cliente" ayuda={fichaCliente ? fichaCliente : undefined}>
+            <div className="flex gap-1.5">
+              <Texto
+                value={borrador.jugador}
+                onChange={(e) => set({ jugador: e.target.value })}
+                placeholder="Nombre del jugador"
+                list="lista-jugadores"
+              />
+              <button
+                type="button"
+                onClick={() => setClienteNuevo(clienteVacio(borrador.jugador))}
+                title="Dar de alta una ficha de cliente"
+                aria-label="Nuevo cliente"
+                className="shrink-0 rounded-lg border border-borde px-2.5 text-tinta-3 transition-colors hover:border-oro hover:text-oro"
+              >
+                <UserPlus size={14} />
+              </button>
+            </div>
             <datalist id="lista-jugadores">
-              {[...new Set(estado.operaciones.map((o) => o.jugador))].filter(Boolean).map((j) => (
-                <option key={j} value={j} />
-              ))}
+              {[
+                ...new Set([
+                  ...estado.clientes.filter((c) => c.activo).map((c) => c.nombre),
+                  ...estado.operaciones.map((o) => o.jugador),
+                ]),
+              ]
+                .filter(Boolean)
+                .map((j) => (
+                  <option key={j} value={j} />
+                ))}
             </datalist>
           </Campo>
           <Campo etiqueta="Ubicación">
@@ -141,10 +203,11 @@ export function OperacionModal({
             Desglose de servicios
           </h3>
           <div className="overflow-x-auto rounded-xl border border-borde">
-            <table className="w-full min-w-[900px] text-sm">
+            <table className="w-full min-w-[1020px] text-sm">
               <thead>
                 <tr className="border-b border-borde bg-panel-2/60 text-[11px] uppercase tracking-wider text-tinta-3">
                   <th className="px-3 py-2 text-left font-medium">Servicio</th>
+                  <th className="px-2 py-2 text-left font-medium">Tarifa</th>
                   <th className="px-2 py-2 text-right font-medium">Cantidad</th>
                   <th className="px-2 py-2 text-right font-medium">Tarifa cliente</th>
                   <th className="px-2 py-2 text-right font-medium">Subtotal venta</th>
@@ -167,6 +230,31 @@ export function OperacionModal({
                       <td className="px-3 py-2">
                         <span className="text-tinta">{SERVICIO_LABEL[key]}</span>
                         <span className="ml-1 text-[11px] text-tinta-3">({SERVICIO_UNIDAD[key]})</span>
+                      </td>
+                      <td className="px-2 py-2">
+                        {(() => {
+                          const disponibles = tarifasTemporada.filter((t) => t.servicio === key)
+                          return (
+                            <select
+                              value={tarifaCoincidente(key)}
+                              onChange={(e) => aplicarTarifa(key, e.target.value)}
+                              disabled={disponibles.length === 0}
+                              className="celda-edit min-w-[196px] disabled:opacity-50"
+                              aria-label={`Tarifa de ${SERVICIO_LABEL[key]}`}
+                            >
+                              <option value="" className="bg-panel">
+                                {disponibles.length === 0
+                                  ? 'Sin tarifas en el tarifario'
+                                  : '— Precio manual —'}
+                              </option>
+                              {disponibles.map((t) => (
+                                <option key={t.id} value={t.id} className="bg-panel">
+                                  {t.concepto} · {t.tarifaVenta} €
+                                </option>
+                              ))}
+                            </select>
+                          )
+                        })()}
                       </td>
                       <td className="px-2 py-2">
                         <NumeroInput
@@ -313,6 +401,16 @@ export function OperacionModal({
           />
         </Campo>
       </div>
+
+      <ClienteModal
+        cliente={clienteNuevo}
+        onGuardar={(c) => {
+          guardarCliente(c)
+          set({ jugador: c.nombre })
+          setClienteNuevo(null)
+        }}
+        onCerrar={() => setClienteNuevo(null)}
+      />
     </Modal>
   )
 }

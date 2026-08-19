@@ -20,6 +20,15 @@ export const SERVICIO_SHORT: Record<ServicioKey, string> = {
   fisio: 'Fisio',
 }
 
+/** Unidad en singular, para textos del tipo "precio por hora". */
+export const SERVICIO_UNIDAD_SINGULAR: Record<ServicioKey, string> = {
+  chef: 'día',
+  campo: 'hora',
+  coach: 'hora',
+  gimnasio: 'hora',
+  fisio: 'sesión',
+}
+
 export const SERVICIO_UNIDAD: Record<ServicioKey, string> = {
   chef: 'días',
   campo: 'horas',
@@ -94,6 +103,39 @@ export interface Liquidacion {
   estado: 'pendiente' | 'pagada'
 }
 
+/** Ficha de cliente: el jugador o la agencia que contrata los servicios. */
+export interface Cliente {
+  id: string
+  nombre: string
+  /** Agencia o representante que gestiona al jugador. */
+  agencia: string
+  contacto: string
+  club: string
+  notas: string
+  activo: boolean
+}
+
+/**
+ * Entrada del tarifario: el precio de un servicio concreto en una temporada,
+ * con lo que se cobra al cliente y lo que se paga al proveedor.
+ * Al darla de alta en una operación rellena las dos tarifas de golpe.
+ */
+export interface Tarifa {
+  id: string
+  temporada: number
+  servicio: ServicioKey
+  proveedorId: string | null
+  /** Nombre con el que se elige en el alta: "Campo 11 · MFC", "Coach sénior"… */
+  concepto: string
+  /** Precio por unidad al cliente, antes del fee de servicio y del IVA. */
+  tarifaVenta: number
+  /** Coste por unidad del proveedor, antes de IVA. */
+  tarifaCoste: number
+  notas: string
+  /** Una tarifa inactiva se conserva pero no se ofrece al crear operaciones. */
+  activa: boolean
+}
+
 export interface Temporada {
   year: number
   /** Impuesto de sociedades aplicado al margen bruto (0.22 = 22%). */
@@ -119,6 +161,8 @@ export interface AppState {
   operaciones: Operacion[]
   proveedores: Proveedor[]
   liquidaciones: Liquidacion[]
+  clientes: Cliente[]
+  tarifas: Tarifa[]
   ubicaciones: string[]
   resumenesDeclarados: ResumenDeclarado[]
 }

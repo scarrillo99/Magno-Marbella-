@@ -388,6 +388,81 @@ const LIQUIDACIONES: AppState['liquidaciones'] = [
   { id: 'liq_12', proveedorId: 'prov_chef', fecha: '2026-02-20', temporada: 2026, concepto: 'Servicio de chef temporada 2026', importe: 1698.84, estado: 'pendiente' },
 ]
 
+/* ---------------------------------------------------------------------------
+ * Fichas de cliente. Se parte de los jugadores que ya aparecen en las
+ * temporadas 2025 y 2026; la agencia, el club y el contacto quedan en blanco
+ * porque no constan en el control de origen.
+ * ------------------------------------------------------------------------ */
+const CLIENTES: AppState['clientes'] = [
+  'Rogon',
+  'Sunett',
+  'Rasford',
+  'Orel Greuel',
+  'Curtis',
+  'Tyler',
+  'Jerry Yates',
+  'Monchu',
+  'Alvian',
+  'Noah',
+  'Leo',
+  'Gabz',
+].map((nombre) => ({
+  id: `cli_${nombre.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`,
+  nombre,
+  agencia: '',
+  contacto: '',
+  club: '',
+  notas: '',
+  activo: true,
+}))
+
+/* ---------------------------------------------------------------------------
+ * Tarifario.
+ *
+ * Las tarifas de 2026 son las medias efectivas que se desprenden de las
+ * operaciones de esa temporada. Las de 2027 arrancan con esos mismos valores
+ * como punto de partida: hay que revisarlas antes de facturar, y ese aviso
+ * viaja en las notas de cada linea.
+ * ------------------------------------------------------------------------ */
+interface DefTarifa {
+  servicio: ServicioKey
+  proveedorId: string
+  concepto: string
+  venta: number
+  coste: number
+  origen: string
+  activa?: boolean
+}
+
+const TARIFAS_BASE: DefTarifa[] = [
+  { servicio: 'campo', proveedorId: 'prov_mfc', concepto: 'Campo · Marbella Football Center', venta: 82.57, coste: 54.38, origen: 'media efectiva 2026' },
+  { servicio: 'campo', proveedorId: 'prov_banus', concepto: 'Campo · Banus FC', venta: 72.85, coste: 75.0, origen: 'media efectiva 2026' },
+  { servicio: 'campo', proveedorId: 'prov_dama', concepto: 'Campo · Dama de Noche', venta: 86.19, coste: 50.49, origen: 'media efectiva 2025' },
+  { servicio: 'campo', proveedorId: 'prov_estepona', concepto: 'Campo · Estepona Sports Complex', venta: 0, coste: 75.0, origen: 'coste habitual del proveedor; precio de venta por definir', activa: false },
+  { servicio: 'coach', proveedorId: 'prov_coach', concepto: 'Entrenador · staff Magno', venta: 67.09, coste: 24.72, origen: 'media efectiva 2026' },
+  { servicio: 'chef', proveedorId: 'prov_alojamiento', concepto: 'Villa u hotel con chef', venta: 117.26, coste: 109.2, origen: 'media efectiva 2026' },
+  { servicio: 'chef', proveedorId: 'prov_chef', concepto: 'Chef privado a domicilio', venta: 178.33, coste: 93.02, origen: 'media efectiva 2025' },
+  { servicio: 'fisio', proveedorId: 'prov_fisio', concepto: 'Sesión de fisioterapia', venta: 52.44, coste: 23.97, origen: 'media efectiva 2026' },
+  { servicio: 'gimnasio', proveedorId: 'prov_gym', concepto: 'Gimnasio y preparación física', venta: 62.66, coste: 8.92, origen: 'media efectiva 2026' },
+]
+
+const TARIFAS: AppState['tarifas'] = [2026, 2027].flatMap((temporada) =>
+  TARIFAS_BASE.map((t) => ({
+    id: `tar_${temporada}_${t.servicio}_${t.proveedorId}`,
+    temporada,
+    servicio: t.servicio,
+    proveedorId: t.proveedorId,
+    concepto: t.concepto,
+    tarifaVenta: t.venta,
+    tarifaCoste: t.coste,
+    activa: t.activa !== false,
+    notas:
+      temporada === 2027
+        ? `Tarifa de partida (${t.origen}). Revisar antes de facturar la temporada 2027.`
+        : `Calculada como ${t.origen}.`,
+  })),
+)
+
 const RESUMENES_DECLARADOS: AppState['resumenesDeclarados'] = [
   {
     temporada: 2025,
@@ -417,10 +492,13 @@ export function estadoInicial(): AppState {
     temporadas: [
       { year: 2025, impuestoPct: 0.22, ivaPct: 0.21, feePct: 0.2, activa: true },
       { year: 2026, impuestoPct: 0.25, ivaPct: 0.21, feePct: 0.2, activa: true },
+      { year: 2027, impuestoPct: 0.25, ivaPct: 0.21, feePct: 0.2, activa: true },
     ],
     operaciones: DEFINICIONES.map(construir),
     proveedores: PROVEEDORES.map((p) => ({ ...p })),
     liquidaciones: LIQUIDACIONES.map((l) => ({ ...l })),
+    clientes: CLIENTES.map((c) => ({ ...c })),
+    tarifas: TARIFAS.map((t) => ({ ...t })),
     ubicaciones: [...UBICACIONES],
     resumenesDeclarados: RESUMENES_DECLARADOS.map((r) => ({
       ...r,

@@ -150,6 +150,7 @@ export function NumeroInput({
   valor,
   onValor,
   decimales = 2,
+  decimalesMinimos = 0,
   className = '',
   claseContenedor = '',
   sufijo,
@@ -158,13 +159,20 @@ export function NumeroInput({
   valor: number
   onValor: (n: number) => void
   decimales?: number
+  /** Fuerza decimales fijos: 2 para importes, 0 para cantidades. */
+  decimalesMinimos?: number
   sufijo?: string
   className?: string
   /** Ancho del contenedor; el sufijo se ancla a su borde derecho. */
   claseContenedor?: string
 } & Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'>) {
   const formatear = (n: number) =>
-    n === 0 ? '' : n.toLocaleString('es-ES', { maximumFractionDigits: decimales })
+    n === 0
+      ? ''
+      : n.toLocaleString('es-ES', {
+          maximumFractionDigits: decimales,
+          minimumFractionDigits: Math.min(decimalesMinimos, decimales),
+        })
   const [texto, setTexto] = useState(() => formatear(valor))
   const enfocado = useRef(false)
 

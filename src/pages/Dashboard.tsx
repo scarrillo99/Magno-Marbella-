@@ -83,8 +83,8 @@ export function Dashboard() {
     return (
       <Panel>
         <Vacio
-          titulo="Sin operaciones en esta vista"
-          mensaje="No hay registros para la temporada seleccionada. Cambia el filtro de temporada o crea una operación desde la sección Operaciones."
+          titulo="Temporada sin operaciones todavía"
+          mensaje="Revisa el tarifario, da de alta los clientes en Jugadores y registra la primera operación. Los KPIs aparecerán en cuanto haya facturación."
         />
       </Panel>
     )

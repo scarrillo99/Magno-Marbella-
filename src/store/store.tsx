@@ -8,7 +8,16 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { SERVICIOS, type AppState, type Liquidacion, type Operacion, type Proveedor, type Temporada } from '../types'
+import {
+  SERVICIOS,
+  type AppState,
+  type Cliente,
+  type Liquidacion,
+  type Operacion,
+  type Proveedor,
+  type Tarifa,
+  type Temporada,
+} from '../types'
 import { estadoInicial } from '../data/seed'
 import { cargarEstado, guardarEstado, limpiarEstado, normalizarEstado } from '../lib/storage'
 import { uid } from '../lib/id'
@@ -25,6 +34,8 @@ interface Store {
   /** Operaciones de la temporada seleccionada. */
   operacionesFiltradas: Operacion[]
   liquidacionesFiltradas: Liquidacion[]
+  /** Tarifas de la temporada seleccionada (todas si el filtro es «todas»). */
+  tarifasFiltradas: Tarifa[]
 
   crearOperacion: (parcial?: Partial<Operacion>) => Operacion
   guardarOperacion: (op: Operacion) => void
@@ -37,6 +48,14 @@ interface Store {
 
   guardarLiquidacion: (l: Liquidacion) => void
   borrarLiquidacion: (id: string) => void
+
+  guardarCliente: (c: Cliente) => Cliente
+  borrarCliente: (id: string) => void
+
+  guardarTarifa: (t: Tarifa) => void
+  borrarTarifa: (id: string) => void
+  /** Copia el tarifario de una temporada a otra, sin pisar lo ya existente. */
+  copiarTarifas: (origen: number, destino: number) => number
 
   guardarTemporada: (t: Temporada) => void
   borrarTemporada: (year: number) => void
@@ -86,6 +105,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [estado.liquidaciones, temporadaSel],
   )
 
+  const tarifasFiltradas = useMemo(
+    () =>
+      temporadaSel === 'todas'
+        ? estado.tarifas
+        : estado.tarifas.filter((t) => t.temporada === temporadaSel),
+    [estado.tarifas, temporadaSel],
+  )
+
   const crearOperacion = useCallback<Store['crearOperacion']>(
     (parcial) => {
       const year =
@@ -97,10 +124,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         servicios[key] = { cantidad: 0, tarifaVenta: 0, tarifaCoste: 0, proveedorId: null }
       }
       const correlativo = estado.operaciones.filter((o) => o.temporada === year).length + 1
+      // Al abrir una temporada distinta del año en curso, la fecha de hoy
+      // dejaria la operación fuera de su propia temporada.
+      const hoy = hoyISO()
+      const fecha = hoy.startsWith(String(year)) ? hoy : `${year}-01-01`
       return {
         id: uid('op'),
         numeroFactura: `MM-${year}-${String(correlativo).padStart(3, '0')}`,
-        fecha: hoyISO(),
+        fecha,
         temporada: year,
         ubicacion: estado.ubicaciones[0] ?? '',
         jugador: '',
@@ -199,6 +230,53 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setEstado((prev) => ({ ...prev, liquidaciones: prev.liquidaciones.filter((l) => l.id !== id) }))
   }, [])
 
+  const guardarCliente = useCallback<Store['guardarCliente']>((c) => {
+    setEstado((prev) => ({
+      ...prev,
+      clientes: prev.clientes.some((x) => x.id === c.id)
+        ? prev.clientes.map((x) => (x.id === c.id ? c : x))
+        : [...prev.clientes, c],
+    }))
+    return c
+  }, [])
+
+  const borrarCliente = useCallback<Store['borrarCliente']>((id) => {
+    // Las operaciones guardan el nombre del jugador, así que no se pierden
+    // al dar de baja la ficha.
+    setEstado((prev) => ({ ...prev, clientes: prev.clientes.filter((c) => c.id !== id) }))
+  }, [])
+
+  const guardarTarifa = useCallback<Store['guardarTarifa']>((t) => {
+    setEstado((prev) => ({
+      ...prev,
+      tarifas: prev.tarifas.some((x) => x.id === t.id)
+        ? prev.tarifas.map((x) => (x.id === t.id ? t : x))
+        : [...prev.tarifas, t],
+    }))
+  }, [])
+
+  const borrarTarifa = useCallback<Store['borrarTarifa']>((id) => {
+    setEstado((prev) => ({ ...prev, tarifas: prev.tarifas.filter((t) => t.id !== id) }))
+  }, [])
+
+  const copiarTarifas = useCallback<Store['copiarTarifas']>((origen, destino) => {
+    let copiadas = 0
+    setEstado((prev) => {
+      const yaHay = new Set(
+        prev.tarifas
+          .filter((t) => t.temporada === destino)
+          .map((t) => `${t.servicio}|${t.proveedorId ?? ''}|${t.concepto}`),
+      )
+      const nuevas = prev.tarifas
+        .filter((t) => t.temporada === origen)
+        .filter((t) => !yaHay.has(`${t.servicio}|${t.proveedorId ?? ''}|${t.concepto}`))
+        .map((t) => ({ ...t, id: uid('tar'), temporada: destino }))
+      copiadas = nuevas.length
+      return nuevas.length === 0 ? prev : { ...prev, tarifas: [...prev.tarifas, ...nuevas] }
+    })
+    return copiadas
+  }, [])
+
   const guardarTemporada = useCallback<Store['guardarTemporada']>((t) => {
     setEstado((prev) => ({
       ...prev,
@@ -233,6 +311,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setTemporadaSel,
       operacionesFiltradas,
       liquidacionesFiltradas,
+      tarifasFiltradas,
       crearOperacion,
       guardarOperacion,
       actualizarOperacion,
@@ -242,6 +321,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       borrarProveedor,
       guardarLiquidacion,
       borrarLiquidacion,
+      guardarCliente,
+      borrarCliente,
+      guardarTarifa,
+      borrarTarifa,
+      copiarTarifas,
       guardarTemporada,
       borrarTemporada,
       guardarUbicaciones,
@@ -253,6 +337,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       temporadaSel,
       operacionesFiltradas,
       liquidacionesFiltradas,
+      tarifasFiltradas,
       crearOperacion,
       guardarOperacion,
       actualizarOperacion,

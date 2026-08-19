@@ -6,6 +6,7 @@ import {
   ClipboardList,
   Menu,
   Settings,
+  Tags,
   Trophy,
   X,
 } from 'lucide-react'
@@ -14,13 +15,15 @@ import { Dashboard } from './pages/Dashboard'
 import { Operaciones } from './pages/Operaciones'
 import { Jugadores } from './pages/Jugadores'
 import { Proveedores } from './pages/Proveedores'
+import { Tarifas } from './pages/Tarifas'
 import { Ajustes } from './pages/Ajustes'
 
 const SECCIONES = [
   { id: 'dashboard', nombre: 'Dashboard', icono: BarChart3, desc: 'KPIs y análisis' },
   { id: 'operaciones', nombre: 'Operaciones', icono: ClipboardList, desc: 'Registros por jugador' },
-  { id: 'jugadores', nombre: 'Jugadores', icono: Trophy, desc: 'Rentabilidad por cliente' },
+  { id: 'jugadores', nombre: 'Jugadores', icono: Trophy, desc: 'Clientes y rentabilidad' },
   { id: 'proveedores', nombre: 'Proveedores', icono: Building2, desc: 'Costes y liquidaciones' },
+  { id: 'tarifas', nombre: 'Tarifas', icono: Tags, desc: 'Precios por servicio' },
   { id: 'ajustes', nombre: 'Ajustes', icono: Settings, desc: 'Temporadas y datos' },
 ] as const
 
@@ -118,7 +121,7 @@ function Shell() {
 
         <div className="border-t border-borde px-4 py-3">
           <p className="text-[11px] text-tinta-3">
-            {operacionesFiltradas.length} operación{operacionesFiltradas.length === 1 ? '' : 'es'} en vista ·{' '}
+            {operacionesFiltradas.length} {operacionesFiltradas.length === 1 ? 'operación' : 'operaciones'} en vista ·{' '}
             {estado.operaciones.length} en total
           </p>
         </div>
@@ -178,6 +181,7 @@ function Shell() {
           {seccion === 'operaciones' && <Operaciones />}
           {seccion === 'jugadores' && <Jugadores />}
           {seccion === 'proveedores' && <Proveedores />}
+          {seccion === 'tarifas' && <Tarifas />}
           {seccion === 'ajustes' && <Ajustes />}
         </main>
       </div>

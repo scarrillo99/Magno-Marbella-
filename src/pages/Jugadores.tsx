@@ -13,15 +13,19 @@ import {
   YAxis,
   ZAxis,
 } from 'recharts'
-import { Search } from 'lucide-react'
+import { Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import { useStore } from '../store/store'
 import { agruparPorJugador, calcularOperacion, type FilaJugador } from '../lib/calc'
 import { eur, eur0, pct } from '../lib/format'
-import { Badge, Barra, Panel, Vacio } from '../components/ui'
+import { Badge, Barra, Boton, Confirmacion, Panel, Vacio } from '../components/ui'
+import { ClienteModal, clienteVacio } from '../components/ClienteModal'
+import type { Cliente } from '../types'
 import { EJE, REJILLA, TooltipCaja } from '../components/graficos'
 
 export function Jugadores() {
-  const { operacionesFiltradas } = useStore()
+  const { estado, operacionesFiltradas, guardarCliente, borrarCliente } = useStore()
+  const [editandoCliente, setEditandoCliente] = useState<Cliente | null>(null)
+  const [clienteABorrar, setClienteABorrar] = useState<Cliente | null>(null)
   const [busqueda, setBusqueda] = useState('')
   const [orden, setOrden] = useState<keyof FilaJugador>('facturado')
 
@@ -54,11 +58,56 @@ export function Jugadores() {
   const margenMedio =
     totalFacturado > 0 ? filtrados.reduce((a, j) => a + j.beneficio, 0) / totalFacturado : 0
 
+  const registro = (
+    <RegistroClientes
+      clientes={estado.clientes}
+      operaciones={estado.operaciones}
+      onEditar={setEditandoCliente}
+      onBorrar={setClienteABorrar}
+      onNuevo={() => setEditandoCliente(clienteVacio())}
+    />
+  )
+
+  const modales = (
+    <>
+      <ClienteModal
+        cliente={editandoCliente}
+        onGuardar={(c) => {
+          guardarCliente(c)
+          setEditandoCliente(null)
+        }}
+        onCerrar={() => setEditandoCliente(null)}
+      />
+      <Confirmacion
+        abierto={clienteABorrar !== null}
+        titulo="Eliminar ficha de cliente"
+        mensaje={
+          <>
+            Se eliminará la ficha de <strong className="text-tinta">{clienteABorrar?.nombre}</strong>. Sus
+            operaciones se conservan con el nombre tal cual, así que el histórico y los márgenes no cambian.
+          </>
+        }
+        onCancelar={() => setClienteABorrar(null)}
+        onConfirmar={() => {
+          if (clienteABorrar) borrarCliente(clienteABorrar.id)
+          setClienteABorrar(null)
+        }}
+      />
+    </>
+  )
+
   if (jugadores.length === 0) {
     return (
-      <Panel>
-        <Vacio titulo="Sin jugadores" mensaje="No hay operaciones registradas en la temporada seleccionada." />
-      </Panel>
+      <div className="space-y-5">
+        <Panel>
+          <Vacio
+            titulo="Sin operaciones en esta temporada"
+            mensaje="Todavía no hay facturación que analizar. Da de alta aquí abajo los clientes de la temporada y regístralos en Operaciones."
+          />
+        </Panel>
+        {registro}
+        {modales}
+      </div>
     )
   }
 
@@ -237,6 +286,131 @@ export function Jugadores() {
           </table>
         </div>
       </Panel>
+
+      {registro}
+      {modales}
     </div>
+  )
+}
+
+/** Fichas de cliente: existen al margen de que hayan facturado o no. */
+function RegistroClientes({
+  clientes,
+  operaciones,
+  onEditar,
+  onBorrar,
+  onNuevo,
+}: {
+  clientes: Cliente[]
+  operaciones: { jugador: string; temporada: number }[]
+  onEditar: (c: Cliente) => void
+  onBorrar: (c: Cliente) => void
+  onNuevo: () => void
+}) {
+  const temporadasPorCliente = (nombre: string) =>
+    [
+      ...new Set(
+        operaciones
+          .filter((o) => o.jugador.trim().toLowerCase() === nombre.trim().toLowerCase())
+          .map((o) => o.temporada),
+      ),
+    ].sort()
+
+  return (
+    <Panel
+      sinPadding
+      titulo="Fichas de cliente"
+      descripcion="Registro de jugadores y agencias, independiente de la temporada en vista"
+      acciones={
+        <Boton variante="primario" onClick={onNuevo}>
+          <Plus size={13} /> Nuevo cliente
+        </Boton>
+      }
+    >
+      {clientes.length === 0 ? (
+        <Vacio
+          titulo="Sin fichas de cliente"
+          mensaje="Da de alta a los jugadores y agencias con los que trabajas para tenerlos disponibles al crear operaciones."
+          accion={
+            <Boton variante="primario" onClick={onNuevo}>
+              <Plus size={13} /> Crear la primera
+            </Boton>
+          }
+        />
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[780px] text-sm">
+            <thead>
+              <tr className="border-b border-borde text-[11px] uppercase tracking-wider text-tinta-3">
+                <th className="px-5 py-2.5 text-left font-medium">Cliente</th>
+                <th className="px-3 py-2.5 text-left font-medium">Agencia</th>
+                <th className="px-3 py-2.5 text-left font-medium">Club</th>
+                <th className="px-3 py-2.5 text-left font-medium">Contacto</th>
+                <th className="px-3 py-2.5 text-left font-medium">Temporadas</th>
+                <th className="px-5 py-2.5 text-right font-medium">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...clientes]
+                .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+                .map((c) => {
+                  const temporadas = temporadasPorCliente(c.nombre)
+                  return (
+                    <tr key={c.id} className="group border-b border-borde/60 last:border-0 hover:bg-panel-2/50">
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className={`font-medium ${c.activo ? 'text-tinta' : 'text-tinta-3 line-through'}`}>
+                            {c.nombre}
+                          </span>
+                          {!c.activo && <Badge>Inactivo</Badge>}
+                        </div>
+                        {c.notas && (
+                          <span className="mt-0.5 block max-w-md text-[11px] text-tinta-3">{c.notas}</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 text-xs text-tinta-2">{c.agencia || '—'}</td>
+                      <td className="px-3 py-3 text-xs text-tinta-2">{c.club || '—'}</td>
+                      <td className="px-3 py-3 text-xs text-tinta-2">{c.contacto || '—'}</td>
+                      <td className="px-3 py-3">
+                        {temporadas.length === 0 ? (
+                          <Badge tono="oro">Sin operaciones</Badge>
+                        ) : (
+                          <span className="flex flex-wrap gap-1">
+                            {temporadas.map((t) => (
+                              <Badge key={t} tono="azul">
+                                {t}
+                              </Badge>
+                            ))}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3">
+                        <div className="flex items-center justify-end gap-0.5 opacity-60 transition-opacity group-hover:opacity-100">
+                          <button
+                            type="button"
+                            onClick={() => onEditar(c)}
+                            className="rounded p-1.5 text-tinta-3 hover:bg-panel-2 hover:text-oro"
+                            aria-label={`Editar ${c.nombre}`}
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onBorrar(c)}
+                            className="rounded p-1.5 text-tinta-3 hover:bg-panel-2 hover:text-rojo"
+                            aria-label={`Eliminar ${c.nombre}`}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Panel>
   )
 }

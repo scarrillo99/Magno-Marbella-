@@ -23,8 +23,9 @@ La aplicación es 100 % cliente: no necesita servidor ni base de datos. Los dato
 | --- | --- |
 | **Dashboard** | KPIs de la temporada, ranking de jugadores, desglose de gasto por proveedor, análisis de oportunidades y fugas de margen, evolución mensual y cuenta de resultados. |
 | **Operaciones** | Tabla CRUD con edición *inline* (fecha, jugador, ubicación, importe cobrado) y ficha completa con el desglose de servicios, venta, cobro y coste. Búsqueda, ordenación, duplicado y exportación a CSV. |
-| **Jugadores** | Rentabilidad por cliente: facturación frente a margen, dispersión volumen/rentabilidad y detalle con peso sobre la facturación y estado de cobro. |
+| **Jugadores** | Rentabilidad por cliente: facturación frente a margen, dispersión volumen/rentabilidad y detalle con peso sobre la facturación y estado de cobro. Incluye el registro de **fichas de cliente** (jugador, agencia, club, contacto), independiente de la temporada. |
 | **Proveedores** | Alta y edición de instalaciones y colaboradores, coste imputado desde las operaciones y registro de liquidaciones pagadas y pendientes. |
+| **Tarifas** | Tarifario por temporada: precio de venta al cliente y coste de proveedor de cada servicio, con el margen por unidad y aviso de las tarifas que se venden por debajo de coste. Se copia de una temporada a otra en un clic. |
 | **Ajustes** | Parámetros fiscales por temporada (impuesto, IVA, fee), creación de nuevas temporadas, catálogo de ubicaciones, conciliación con el control operativo y copia de seguridad. |
 
 Un **filtro global de temporada** (2025 / 2026 / todas / las que se creen) afecta a todas las
@@ -62,10 +63,50 @@ cliente no residente se factura sin IVA repercutido), y el tipo impositivo es ed
 temporada tanto desde el dashboard como desde Ajustes. Con el filtro en «todas las temporadas»
 el impuesto se calcula temporada a temporada con su propio tipo y solo sobre márgenes positivos.
 
+## Preparar una temporada nueva
+
+1. **Ajustes** → crear la temporada y fijar su tipo impositivo, IVA y fee.
+2. **Tarifas** → con la temporada seleccionada en el filtro global, *Copiar tarifas de…* la
+   temporada anterior y revisar precio de venta y coste de cada servicio. Una tarifa sin precio
+   de venta queda inactiva y no se ofrece hasta fijarlo.
+3. **Jugadores** → *Nuevo cliente* para cada jugador o agencia que entre.
+4. **Operaciones** → *Nueva operación*: se elige el cliente, y en cada línea de servicio se elige
+   una tarifa del tarifario, que rellena precio, coste y proveedor de golpe. Todo sigue siendo
+   editable a mano.
+
+Una operación creada en una temporada distinta del año en curso nace con fecha 1 de enero de esa
+temporada, para no quedar fuera de su propio ejercicio.
+
 ## Datos iniciales
 
 La aplicación arranca con las temporadas 2025 y 2026 del control operativo real: 15 operaciones,
-9 proveedores y 12 liquidaciones.
+9 proveedores y 12 liquidaciones. Se incluye además la temporada **2027** vacía de operaciones,
+con su tarifario listo para revisar, y las fichas de los clientes que ya aparecen en el histórico.
+
+### Tarifario de partida
+
+No consta ninguna lista de precios en el control de origen, así que las tarifas se han calculado
+como la **media efectiva por servicio y proveedor** de las operaciones reales de cada temporada.
+Las de 2027 arrancan con esos valores y llevan el aviso «revisar antes de facturar» en sus notas.
+
+| Servicio | Proveedor | Precio cliente | Coste | Margen/unidad | Origen |
+| --- | --- | --- | --- | --- | --- |
+| Campo | Marbella Football Center | 82,57 € | 54,38 € | 44,70 € (45 %) | media 2026 |
+| Campo | Banus FC | 72,85 € | 75,00 € | 12,42 € (14 %) | media 2026 |
+| Campo | Dama de Noche | 86,19 € | 50,49 € | 52,94 € (51 %) | media 2025 |
+| Campo | Estepona Sports Complex | — | 75,00 € | — | inactiva, sin precio de venta |
+| Coach | Staff de Entrenadores Magno | 67,09 € | 24,72 € | 55,79 € (69 %) | media 2026 |
+| Chef | Villas & Hoteles Marbella | 117,26 € | 109,20 € | 31,51 € (22 %) | media 2026 |
+| Chef | Chef Privado Marbella | 178,33 € | 93,02 € | 120,98 € (57 %) | media 2025 |
+| Fisio | Fisioterapia Deportiva Marbella | 52,44 € | 23,97 € | 38,96 € (62 %) | media 2026 |
+| Gimnasio | Gimnasio High Performance | 62,66 € | 8,92 € | 66,27 € (88 %) | media 2026 |
+
+El margen por unidad es `precio cliente × (1 + fee) − coste de proveedor`. El IVA no entra: se
+repercute y se soporta al mismo tipo, así que no altera el margen.
+
+**Campo · Banus FC se vende por debajo de coste**: 72,85 € frente a 75,00 € que se pagan a la
+instalación. Solo el fee del 20 % mantiene la operación en positivo, y aun así deja un 14 % frente
+al 45 % de MFC. La sección Tarifas marca automáticamente cualquier tarifa en esta situación.
 
 El control de origen está cerrado **por jugador** (total facturado y total de coste), no por línea
 de servicio. Cada operación se reconstruye repartiendo esos totales entre los servicios realmente
@@ -98,16 +139,18 @@ origen antes de usarlo para la declaración.
 
 ```
 src/
-  types.ts               Modelo de dominio (operaciones, proveedores, temporadas)
+  types.ts               Modelo de dominio (operaciones, clientes, tarifas, proveedores, temporadas)
   lib/calc.ts            Motor de cálculo y agregaciones (jugador, servicio, proveedor, mes)
   lib/format.ts          Formato en es-ES: euros, porcentajes, fechas y lectura de números
   lib/storage.ts         Persistencia en localStorage, normalización e importación/exportación
   data/seed.ts           Datos reales de las temporadas 2025 y 2026
+  lib/descarga.ts        Descarga de CSV y JSON, con soporte del visor de Artifacts
   store/store.tsx        Estado global, filtro de temporada y operaciones CRUD
-  components/            Primitivas de interfaz, tarjetas KPI y utilidades de gráficos
-  pages/                 Dashboard, Operaciones, Jugadores, Proveedores y Ajustes
+  components/            Primitivas de interfaz, tarjetas KPI, ficha de cliente y gráficos
+  pages/                 Dashboard, Operaciones, Jugadores, Proveedores, Tarifas y Ajustes
 ```
 
 Stack: React 18, TypeScript, Vite, Tailwind CSS 4 y Recharts. El estado importado o recuperado de
 `localStorage` se normaliza contra el modelo actual, de modo que un JSON antiguo o incompleto no
-rompe la aplicación.
+rompe la aplicación: si le faltan las fichas de cliente, se reconstruyen a partir de los jugadores
+que ya aparezcan en las operaciones guardadas.

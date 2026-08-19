@@ -260,7 +260,7 @@ export function Operaciones() {
                 <tr className="border-t-2 border-borde-fuerte bg-panel-2/60 text-sm font-semibold">
                   <td />
                   <td className="px-3 py-3 text-tinta-2" colSpan={2}>
-                    {filas.length} operación{filas.length === 1 ? '' : 'es'}
+                    {filas.length} {filas.length === 1 ? 'operación' : 'operaciones'}
                   </td>
                   <td className="cifra px-3 py-3 text-right text-oro">{eur(totales.totalFacturado)}</td>
                   <td className="cifra px-3 py-3 text-right text-azul">{eur(totales.pendienteCobro)}</td>
