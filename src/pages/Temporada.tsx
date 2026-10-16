@@ -12,6 +12,7 @@ import { CalendarClock, Info, Repeat, TrendingUp } from 'lucide-react'
 import { useStore } from '../store/store'
 import {
   calcularOperacion,
+  r2,
   estacionalidadPorDia,
   estacionalidadPorMes,
   recurrenciaClientes,
@@ -66,6 +67,11 @@ export function Temporada() {
   const mejorDia = [...diasConDato].sort((a, b) => b.importe - a.importe)[0]
   const repetidores = recurrencia.filter((r) => r.operaciones + r.facturas > 1)
 
+  const declarada =
+    temporadaSel === 'todas'
+      ? null
+      : (estado.facturacionDeclarada.find((f) => f.temporada === temporadaSel) ?? null)
+
   const hayDatos = resultado.ingresos > 0 || calculadas.length > 0
 
   if (!hayDatos) {
@@ -81,6 +87,46 @@ export function Temporada() {
 
   return (
     <div className="space-y-5">
+      {/* ------------------- Conciliación con la hoja de control ------------------ */}
+      {declarada && (
+        <Panel
+          titulo="La hoja de control dice otra cosa"
+          descripcion={`Facturación declarada en ${declarada.fuente}`}
+        >
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="rounded-xl border border-oro/30 bg-oro/8 p-3">
+              <p className="text-[11px] font-medium uppercase tracking-wider text-oro">Según la hoja</p>
+              <p className="cifra mt-1 text-xl font-semibold text-tinta">{eur(declarada.base)}</p>
+              <p className="text-[11px] text-tinta-2">
+                de base, sin IVA · {eur(declarada.total)} con IVA · {declarada.operaciones} operaciones
+              </p>
+            </div>
+            <div className="rounded-xl border border-borde bg-panel-2/40 p-3">
+              <p className="text-[11px] font-medium uppercase tracking-wider text-tinta-3">
+                Cargado en la aplicación
+              </p>
+              <p className="cifra mt-1 text-xl font-semibold text-tinta">{eur(resultado.ingresos)}</p>
+              <p className="text-[11px] text-tinta-2">de base, del libro de IVA</p>
+            </div>
+            <div className="rounded-xl border border-rojo/30 bg-rojo/8 p-3">
+              <p className="text-[11px] font-medium uppercase tracking-wider text-rojo">Falta por cargar</p>
+              <p className="cifra mt-1 text-xl font-semibold text-tinta">
+                {eur(r2(declarada.base - resultado.ingresos))}
+              </p>
+              <p className="text-[11px] text-tinta-2">
+                {pct(1 - resultado.ingresos / declarada.base, 0)} de la temporada
+              </p>
+            </div>
+          </div>
+          <p className="mt-3 text-xs leading-relaxed text-tinta-2">{declarada.notas}</p>
+          <p className="mt-2 text-[11px] leading-relaxed text-tinta-3">
+            De las {declarada.operaciones} filas de la hoja, {declarada.filasSinIva} se cobraron sin IVA
+            ({eur(declarada.baseSinIva)}): son las de efectivo. Hasta que no se importen todas desde Ajustes,
+            el resultado de abajo solo refleja la parte que hay cargada.
+          </p>
+        </Panel>
+      )}
+
       {/* ------------------------- Resultado de la temporada --------------------- */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard

@@ -495,6 +495,26 @@ const TARIFAS: AppState['tarifas'] = [2026, 2027].flatMap((temporada) =>
   })),
 )
 
+/**
+ * Totales de la hoja «MAGNO ENTRENOS» de 2026, leídos de las capturas de la
+ * hoja. La suma de la columna Base cuadra exactamente con los 110.919,00 €
+ * que declara el negocio, y diez de sus filas coinciden al céntimo con
+ * facturas del libro de IVA, así que la lectura está contrastada por dos vías.
+ */
+const FACTURACION_DECLARADA: AppState['facturacionDeclarada'] = [
+  {
+    temporada: 2026,
+    fuente: 'Hoja CONTROL BUSSINES · MAGNO ENTRENOS',
+    base: 110919.0,
+    total: 131218.86,
+    operaciones: 36,
+    filasSinIva: 18,
+    baseSinIva: 14253.0,
+    notas:
+      'La hoja llega hasta diciembre; el libro de IVA cargado solo cubre de abril a agosto. La mitad de las filas se cobraron sin IVA.',
+  },
+]
+
 const RESUMENES_DECLARADOS: AppState['resumenesDeclarados'] = [
   {
     temporada: 2025,
@@ -539,6 +559,7 @@ export function estadoInicial(): AppState {
     categoriasDirectas: [...CATEGORIAS_DIRECTAS_POR_DEFECTO],
     repartoCompartidoPct: 0.5,
     ubicaciones: [...UBICACIONES],
+    facturacionDeclarada: FACTURACION_DECLARADA.map((f) => ({ ...f })),
     resumenesDeclarados: RESUMENES_DECLARADOS.map((r) => ({
       ...r,
       detalleCostes: r.detalleCostes.map((d) => ({ ...d })),

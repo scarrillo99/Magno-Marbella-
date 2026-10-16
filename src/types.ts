@@ -254,6 +254,24 @@ export interface FacturaRecibida {
   notas: string
 }
 
+/**
+ * Facturación que declara la hoja de control de la temporada, para conciliar
+ * contra lo que haya cargado en la aplicación.
+ */
+export interface FacturacionDeclarada {
+  temporada: number
+  fuente: string
+  /** Suma de la columna «Base» de la hoja, sin IVA. */
+  base: number
+  /** Suma de la columna «Total», con el IVA de cada fila. */
+  total: number
+  operaciones: number
+  /** Filas cobradas sin IVA, y su importe. */
+  filasSinIva: number
+  baseSinIva: number
+  notas: string
+}
+
 /** Cifras oficiales declaradas en el control operativo, para conciliación. */
 export interface ResumenDeclarado {
   temporada: number
@@ -282,4 +300,5 @@ export interface AppState {
   repartoCompartidoPct: number
   ubicaciones: string[]
   resumenesDeclarados: ResumenDeclarado[]
+  facturacionDeclarada: FacturacionDeclarada[]
 }

@@ -147,6 +147,26 @@ La aplicación arranca con las temporadas 2025 y 2026 del control operativo real
 9 proveedores y 12 liquidaciones. Se incluye además la temporada **2027** vacía de operaciones,
 con su tarifario listo para revisar, y las fichas de los clientes que ya aparecen en el histórico.
 
+### Qué dice cada fuente sobre 2026
+
+Hay tres cifras de facturación para la temporada 2026 y no miden lo mismo:
+
+| Fuente | Base sin IVA | Con IVA | Qué cubre |
+| --- | --- | --- | --- |
+| Hoja CONTROL BUSSINES · MAGNO ENTRENOS | 110.919,00 € | 131.218,86 € | las 36 operaciones del año, hasta diciembre |
+| Libro de IVA de la sociedad | 42.385,60 € | 51.181,57 € | solo la serie MM de abril a agosto |
+| JSON del control operativo inicial | — | 44.704,00 € | resumen de partida, ya superado |
+
+La suma de la columna *Base* de la hoja cuadra al céntimo con los 110.919,00 € que declara el
+negocio, y diez de sus filas coinciden exactamente con facturas del libro de IVA (MM/000001 con
+Monchu, MM/000004 con Tyler, MM/000009 con Alvian…), así que las dos fuentes se validan entre sí.
+El desfase de 68.533,40 € es lo que la hoja recoge y el libro cargado no: de septiembre a diciembre
+—incluida una operación de 56.000 € de base entre octubre y diciembre— más las filas cobradas sin
+IVA. La sección **Temporada** muestra esta conciliación y cuánto falta por cargar.
+
+De las 36 filas de la hoja, **18 se cobraron sin IVA** (14.253,00 € de base): son los cobros en
+efectivo, que la aplicación modela con el IVA por línea.
+
 ### Libros de facturación 2026
 
 La temporada 2026 arranca con los libros de IVA reales de abril a agosto de 2026: **19 facturas

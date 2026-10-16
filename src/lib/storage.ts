@@ -214,6 +214,9 @@ export function normalizarEstado(raw: unknown): AppState {
     ubicaciones: Array.isArray(s.ubicaciones) && s.ubicaciones.length > 0
       ? s.ubicaciones.filter((u): u is string => typeof u === 'string')
       : base.ubicaciones,
+    facturacionDeclarada: Array.isArray(s.facturacionDeclarada)
+      ? (s.facturacionDeclarada as AppState['facturacionDeclarada'])
+      : base.facturacionDeclarada,
     resumenesDeclarados: Array.isArray(s.resumenesDeclarados)
       ? (s.resumenesDeclarados as AppState['resumenesDeclarados'])
       : base.resumenesDeclarados,
