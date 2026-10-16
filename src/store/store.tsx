@@ -158,8 +158,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         ubicacion: estado.ubicaciones[0] ?? '',
         jugador: '',
         lineas: [],
-        feePct: cfg?.feePct ?? 0.2,
+        feePct: cfg?.feePct ?? 0,
+        descuento: 0,
         pagado: 0,
+        pagosProveedor: {},
         notas: '',
         ...parcial,
       }

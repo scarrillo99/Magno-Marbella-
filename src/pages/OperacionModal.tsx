@@ -244,17 +244,31 @@ export function OperacionModal({
               ? 'Líneas con IVA distinto: revisa la columna «IVA» de cada servicio.'
               : 'Cambia el IVA de todas las líneas a la vez; cada una se puede ajustar por separado.'}
           </span>
-          <label className="ml-auto flex items-center gap-2 text-[11px] text-tinta-3">
-            Fee de servicio
-            <NumeroInput
-              valor={r2(borrador.feePct * 100)}
-              onValor={(n) => set({ feePct: n / 100 })}
-              className="celda-edit w-full text-right"
-              claseContenedor="w-20"
-              sufijo="%"
-              aria-label="Fee de servicio"
-            />
-          </label>
+          <div className="ml-auto flex items-center gap-4">
+            <label className="flex items-center gap-2 text-[11px] text-tinta-3">
+              Descuento
+              <NumeroInput
+                valor={borrador.descuento}
+                onValor={(n) => set({ descuento: n })}
+                decimalesMinimos={2}
+                className="celda-edit w-full text-right"
+                claseContenedor="w-28"
+                sufijo="€"
+                aria-label="Descuento de la operación"
+              />
+            </label>
+            <label className="flex items-center gap-2 text-[11px] text-tinta-3">
+              Fee de servicio
+              <NumeroInput
+                valor={r2(borrador.feePct * 100)}
+                onValor={(n) => set({ feePct: n / 100 })}
+                className="celda-edit w-full text-right"
+                claseContenedor="w-20"
+                sufijo="%"
+                aria-label="Fee de servicio"
+              />
+            </label>
+          </div>
         </div>
 
         {/* -------------------------- Líneas de servicio -------------------------- */}
@@ -458,7 +472,10 @@ export function OperacionModal({
               Lo que se cobra al cliente
             </h3>
             <Fila label="Suma de servicios" valor={calc.subtotalVenta} />
-            <Fila label={`Fee de servicio (${pct(borrador.feePct, 0)})`} valor={calc.fee} />
+            {borrador.feePct > 0 && (
+              <Fila label={`Fee de servicio (${pct(borrador.feePct, 0)})`} valor={calc.fee} />
+            )}
+            {calc.descuento > 0 && <Fila label="Descuento" valor={-calc.descuento} tono="rojo" />}
             <Fila label="Base imponible" valor={calc.baseImponible} fuerte />
             <Fila label="IVA repercutido" valor={calc.ivaVenta} />
             <Fila label="Total a cobrar" valor={calc.totalVenta} destacado />
@@ -490,6 +507,30 @@ export function OperacionModal({
                       {p.conceptos.join(', ')} · base {eur(p.base)}
                       {p.iva > 0 ? ` + IVA ${eur(p.iva)}` : ' · sin IVA'}
                     </p>
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <label className="flex items-center gap-1.5 text-[11px] text-tinta-3">
+                        A cuenta
+                        <NumeroInput
+                          valor={borrador.pagosProveedor[p.proveedorId] ?? 0}
+                          onValor={(n) =>
+                            set({ pagosProveedor: { ...borrador.pagosProveedor, [p.proveedorId]: n } })
+                          }
+                          decimalesMinimos={2}
+                          className="celda-edit w-full text-right"
+                          claseContenedor="w-24"
+                          sufijo="€"
+                          aria-label={`Pagado a cuenta a ${p.nombre}`}
+                        />
+                      </label>
+                      {(() => {
+                        const resta = r2(p.total - (borrador.pagosProveedor[p.proveedorId] ?? 0))
+                        return (
+                          <span className={`cifra text-[11px] ${resta > 0.005 ? 'text-oro' : 'text-verde'}`}>
+                            {resta > 0.005 ? `restan ${eur(resta)}` : 'liquidado'}
+                          </span>
+                        )
+                      })()}
+                    </div>
                   </li>
                 ))}
               </ul>

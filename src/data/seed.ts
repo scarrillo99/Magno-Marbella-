@@ -37,11 +37,13 @@ const PROVEEDORES: AppState['proveedores'] = [
 ]
 
 const UBICACIONES = [
-  'Dama de Noche',
-  'Marbella Football Center',
   'Banus FC',
-  'Estepona',
-  'Villa / Hotel Marbella',
+  'Marbella Football Center',
+  'Estepona Football Center',
+  'Dama de Noche',
+  'Villa + Hotel',
+  'Villa Lanzini',
+  'Chef Villa',
 ]
 
 interface MixLinea {
@@ -117,6 +119,8 @@ function construir(def: DefOperacion): Operacion {
     jugador: def.jugador,
     lineas,
     feePct,
+    descuento: 0,
+    pagosProveedor: {},
     pagado: def.pagado === undefined || def.pagado === null ? totalVentaReal : def.pagado,
     notas: def.notas ?? '',
   }
@@ -393,19 +397,17 @@ const LIQUIDACIONES: AppState['liquidaciones'] = [
  * temporadas 2025 y 2026; la agencia, el club y el contacto quedan en blanco
  * porque no constan en el control de origen.
  * ------------------------------------------------------------------------ */
+/**
+ * Jugadores que aparecen en la hoja de control «MAGNO ENTRENOS» de 2026 y en
+ * el histórico 2025, pero que no tienen factura a su nombre en el libro de IVA
+ * (muchas se emiten a la agencia o a la sociedad que los representa).
+ */
 const CLIENTES_HISTORICO = [
-  'Rogon',
-  'Sunett',
-  'Rasford',
-  'Orel Greuel',
-  'Curtis',
-  'Tyler',
-  'Jerry Yates',
-  'Monchu',
-  'Alvian',
-  'Noah',
-  'Leo',
-  'Gabz',
+  'Fermi Seriki', 'Tyler', 'Leo', 'Monchu', 'Fraser', 'Gabz', 'Alvaro Valles',
+  'Lucas', 'Josep', 'Armindo (rodion)', 'Sam', 'Luis', 'Will', 'Alvian', 'Buba',
+  'Dean', 'Fer', 'Noah', 'Javi Robles', 'Boli', 'Anthony', 'Unique', 'Sebastian',
+  'Felix', 'Jeremy', 'Manuel Angel', 'Luke', 'Mangala', 'Noni', 'Brice', 'AJ',
+  'Rogon', 'Sunett', 'Rasford', 'Orel Greuel', 'Curtis', 'Jerry Yates',
 ]
 
 const idCliente = (nombre: string) => `cli_${nombre.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`
@@ -441,7 +443,7 @@ const CLIENTES: AppState['clientes'] = (() => {
       agencia: '',
       contacto: '',
       club: '',
-      notas: 'Del control operativo 2025-2026; sin factura a su nombre en el libro.',
+      notas: 'De la hoja de control; sin factura a su nombre en el libro de IVA.',
       activo: true,
     })
   }
@@ -467,15 +469,15 @@ interface DefTarifa {
 }
 
 const TARIFAS_BASE: DefTarifa[] = [
-  { servicio: 'campo', proveedorId: 'prov_mfc', concepto: 'Campo · Marbella Football Center', venta: 82.57, coste: 54.38, origen: 'media efectiva 2026' },
-  { servicio: 'campo', proveedorId: 'prov_banus', concepto: 'Campo · Banus FC', venta: 72.85, coste: 75.0, origen: 'media efectiva 2026' },
-  { servicio: 'campo', proveedorId: 'prov_dama', concepto: 'Campo · Dama de Noche', venta: 86.19, coste: 50.49, origen: 'media efectiva 2025' },
-  { servicio: 'campo', proveedorId: 'prov_estepona', concepto: 'Campo · Estepona Sports Complex', venta: 0, coste: 75.0, origen: 'coste habitual del proveedor; precio de venta por definir', activa: false },
-  { servicio: 'coach', proveedorId: 'prov_coach', concepto: 'Entrenador · staff Magno', venta: 67.09, coste: 24.72, origen: 'media efectiva 2026' },
-  { servicio: 'chef', proveedorId: 'prov_alojamiento', concepto: 'Villa u hotel con chef', venta: 117.26, coste: 109.2, origen: 'media efectiva 2026' },
-  { servicio: 'chef', proveedorId: 'prov_chef', concepto: 'Chef privado a domicilio', venta: 178.33, coste: 93.02, origen: 'media efectiva 2025' },
-  { servicio: 'fisio', proveedorId: 'prov_fisio', concepto: 'Sesión de fisioterapia', venta: 52.44, coste: 23.97, origen: 'media efectiva 2026' },
-  { servicio: 'gimnasio', proveedorId: 'prov_gym', concepto: 'Gimnasio y preparación física', venta: 62.66, coste: 8.92, origen: 'media efectiva 2026' },
+  { servicio: 'campo', proveedorId: 'prov_mfc', concepto: 'Campo · Marbella Football Center', venta: 480, coste: 350, origen: 'hoja de control 2026' },
+  { servicio: 'campo', proveedorId: 'prov_banus', concepto: 'Campo · Banus FC', venta: 360, coste: 250, origen: 'hoja de control 2026' },
+  { servicio: 'campo', proveedorId: 'prov_estepona', concepto: 'Campo · Estepona Football Center', venta: 360, coste: 250, origen: 'hoja de control 2026' },
+  { servicio: 'campo', proveedorId: 'prov_dama', concepto: 'Campo · Dama de Noche', venta: 360, coste: 250, origen: 'mismo precio que Banus; confirmar' },
+  { servicio: 'coach', proveedorId: 'prov_coach', concepto: 'Entrenador', venta: 110, coste: 50, origen: 'hoja de control 2026; aparecen también 108 de venta y 70 de coste' },
+  { servicio: 'gimnasio', proveedorId: 'prov_gym', concepto: 'Gimnasio', venta: 95, coste: 60, origen: 'hoja de control 2026; aparecen también 90, 85 y 80 de venta' },
+  { servicio: 'fisio', proveedorId: 'prov_fisio', concepto: 'Fisio', venta: 70, coste: 50, origen: 'hoja de control 2026' },
+  { servicio: 'chef', proveedorId: 'prov_chef', concepto: 'Chef', venta: 180, coste: 120, origen: 'hoja de control 2026; el precio varía mucho por servicio' },
+  { servicio: 'chef', proveedorId: 'prov_alojamiento', concepto: 'Villa u hotel', venta: 0, coste: 0, origen: 'se factura por importe cerrado, no por tarifa', activa: false },
 ]
 
 const TARIFAS: AppState['tarifas'] = [2026, 2027].flatMap((temporada) =>
@@ -488,10 +490,7 @@ const TARIFAS: AppState['tarifas'] = [2026, 2027].flatMap((temporada) =>
     tarifaVenta: t.venta,
     tarifaCoste: t.coste,
     activa: t.activa !== false,
-    notas:
-      temporada === 2027
-        ? `Tarifa de partida (${t.origen}). Revisar antes de facturar la temporada 2027.`
-        : `Calculada como ${t.origen}.`,
+    notas: `Tomada de la ${t.origen}.${temporada === 2027 ? ' Revisar antes de facturar 2027.' : ''}`,
   })),
 )
 
@@ -522,9 +521,11 @@ export function estadoInicial(): AppState {
   return {
     empresa: 'Magno Marbella · Entrenos Sports Services',
     temporadas: [
+      // El fee se mantiene en 2025 y 2026 porque sus operaciones se
+      // reconstruyeron con él para cuadrar los totales declarados.
       { year: 2025, impuestoPct: 0.22, ivaPct: 0.21, feePct: 0.2, activa: true },
       { year: 2026, impuestoPct: 0.25, ivaPct: 0.21, feePct: 0.2, activa: true },
-      { year: 2027, impuestoPct: 0.25, ivaPct: 0.21, feePct: 0.2, activa: true },
+      { year: 2027, impuestoPct: 0.25, ivaPct: 0.21, feePct: 0, activa: true },
     ],
     operaciones: DEFINICIONES.map(construir),
     proveedores: PROVEEDORES.map((p) => ({ ...p })),

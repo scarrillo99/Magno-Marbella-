@@ -3,13 +3,16 @@ import { AlertTriangle, Download, Plus, RotateCcw, Trash2, Upload } from 'lucide
 import { useStore } from '../store/store'
 import { calcularOperacion, r2, resumirLibros, resumirOperaciones } from '../lib/calc'
 import { descargarJSON } from '../lib/storage'
+import { importarHojaMagno, type ResultadoImportacion } from '../lib/importarHoja'
+import { calcularOperacion as calcOp } from '../lib/calc'
 import { eur, pct } from '../lib/format'
 import type { Temporada } from '../types'
-import { Badge, Boton, Campo, Confirmacion, NumeroInput, Panel, Texto } from '../components/ui'
+import { Badge, Boton, Campo, Confirmacion, NumeroInput, Panel, Selector, Texto } from '../components/ui'
 
 export function Ajustes() {
   const {
     estado,
+    guardarOperacion,
     guardarTemporada,
     borrarTemporada,
     guardarUbicaciones,
@@ -21,9 +24,14 @@ export function Ajustes() {
     (estado.temporadas.at(-1)?.year ?? new Date().getFullYear()) + 1,
   )
   const [nuevaUbicacion, setNuevaUbicacion] = useState('')
+  const [temporadaImportacion, setTemporadaImportacion] = useState(
+    () => estado.temporadas.at(-1)?.year ?? new Date().getFullYear(),
+  )
   const [confirmarReset, setConfirmarReset] = useState(false)
   const [temporadaABorrar, setTemporadaABorrar] = useState<Temporada | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
+  const [pegado, setPegado] = useState('')
+  const [previa, setPrevia] = useState<ResultadoImportacion | null>(null)
   const inputFichero = useRef<HTMLInputElement>(null)
 
   const yaExiste = estado.temporadas.some((t) => t.year === nuevoAnio)
@@ -303,6 +311,127 @@ export function Ajustes() {
           </div>
         </Panel>
       )}
+
+      {/* --------------------- Importar la hoja de control ----------------------- */}
+      <Panel
+        titulo="Importar la hoja «MAGNO ENTRENOS»"
+        descripcion="Pega las filas desde Google Sheets, con su fila de cabecera, y se convierten en operaciones"
+      >
+        <ol className="mb-4 space-y-1 text-xs leading-relaxed text-tinta-2">
+          <li>1. En la hoja, selecciona desde la fila de cabecera (la que pone «Fecha · Lugar · Nombre») hasta la última fila con datos.</li>
+          <li>2. Copia con ⌘C y pega aquí abajo.</li>
+          <li>3. Revisa la vista previa antes de confirmar: nada se guarda hasta que pulses «Importar».</li>
+        </ol>
+        <textarea
+          value={pegado}
+          onChange={(e) => {
+            setPegado(e.target.value)
+            setPrevia(null)
+          }}
+          rows={5}
+          className="campo resize-y font-mono text-[11px]"
+          placeholder={'Fecha\tLugar\tNombre\tHora\tCheff o Fisio o Villa\t…'}
+          aria-label="Filas copiadas de la hoja"
+        />
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Boton
+            onClick={() =>
+              setPrevia(
+                importarHojaMagno(pegado, temporadaImportacion, {
+                  Campo: null,
+                  Entrenador: 'prov_coach',
+                  Gimnasio: 'prov_gym',
+                  Fisio: 'prov_fisio',
+                  'Chef / Villa': 'prov_chef',
+                }),
+              )
+            }
+            disabled={!pegado.trim()}
+          >
+            Analizar
+          </Boton>
+          <Campo etiqueta="Temporada destino" className="w-32">
+            <Selector
+              value={String(temporadaImportacion)}
+              onChange={(e) => {
+                setTemporadaImportacion(Number(e.target.value))
+                setPrevia(null)
+              }}
+              opciones={estado.temporadas.map((t) => ({ valor: String(t.year), texto: String(t.year) }))}
+            />
+          </Campo>
+        </div>
+
+        {previa && (
+          <div className="mt-4 space-y-3">
+            {previa.avisos.map((a, i) => (
+              <p key={i} className="rounded-lg border border-oro/30 bg-oro/8 px-3 py-2 text-xs text-tinta-2">
+                {a}
+              </p>
+            ))}
+            {previa.operaciones.length === 0 ? (
+              <p className="text-xs text-tinta-3">No se ha reconocido ninguna operación.</p>
+            ) : (
+              <>
+                <div className="overflow-x-auto rounded-xl border border-borde">
+                  <table className="w-full min-w-[720px] text-sm">
+                    <thead>
+                      <tr className="border-b border-borde bg-panel-2/50 text-[11px] uppercase tracking-wider text-tinta-3">
+                        <th className="px-3 py-2 text-left font-medium">Jugador</th>
+                        <th className="px-3 py-2 text-left font-medium">Lugar</th>
+                        <th className="px-3 py-2 text-left font-medium">Servicios</th>
+                        <th className="px-3 py-2 text-right font-medium">Total cliente</th>
+                        <th className="px-3 py-2 text-right font-medium">Coste</th>
+                        <th className="px-3 py-2 text-right font-medium">Beneficio</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {previa.operaciones.map((o) => {
+                        const c = calcOp(o)
+                        return (
+                          <tr key={o.id} className="border-b border-borde/60 last:border-0">
+                            <td className="px-3 py-2 text-tinta">{o.jugador}</td>
+                            <td className="px-3 py-2 text-xs text-tinta-2">{o.ubicacion || '—'}</td>
+                            <td className="px-3 py-2 text-xs text-tinta-3">
+                              {o.lineas.map((l) => `${l.nombre} ×${l.cantidad}`).join(' · ')}
+                            </td>
+                            <td className="cifra px-3 py-2 text-right text-oro">{eur(c.totalVenta)}</td>
+                            <td className="cifra px-3 py-2 text-right text-rojo">{eur(c.totalCoste)}</td>
+                            <td
+                              className={`cifra px-3 py-2 text-right ${c.beneficioOperativo >= 0 ? 'text-verde' : 'text-rojo'}`}
+                            >
+                              {eur(c.beneficioOperativo)}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                {previa.sinReconocer.length > 0 && (
+                  <p className="text-[11px] text-tinta-3">
+                    Columnas que no se han usado: {previa.sinReconocer.slice(0, 14).join(', ')}
+                    {previa.sinReconocer.length > 14 ? '…' : ''}
+                  </p>
+                )}
+                <Boton
+                  variante="primario"
+                  onClick={() => {
+                    previa.operaciones.forEach(guardarOperacion)
+                    setAviso(
+                      `${previa.operaciones.length} operaciones importadas a la temporada ${temporadaImportacion}.`,
+                    )
+                    setPrevia(null)
+                    setPegado('')
+                  }}
+                >
+                  Importar {previa.operaciones.length} operaciones
+                </Boton>
+              </>
+            )}
+          </div>
+        )}
+      </Panel>
 
       {/* ------------------------------- Ubicaciones ----------------------------- */}
       <Panel

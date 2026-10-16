@@ -33,6 +33,7 @@ export interface OperacionCalculada {
   lineas: LineaCalculada[]
   /** Venta */
   subtotalVenta: number
+  descuento: number
   fee: number
   baseImponible: number
   ivaVenta: number
@@ -64,10 +65,15 @@ export interface OperacionCalculada {
  *
  *   Beneficio       = Total cliente - Total proveedor
  */
-export function calcularLinea(linea: LineaServicio, feePct: number): LineaCalculada {
+export function calcularLinea(
+  linea: LineaServicio,
+  feePct: number,
+  /** Parte del descuento de la operación que soporta esta línea. */
+  descuento = 0,
+): LineaCalculada {
   const base = r2(linea.cantidad * linea.tarifaVenta)
   const fee = r2(base * feePct)
-  const baseImponible = r2(base + fee)
+  const baseImponible = r2(base + fee - descuento)
   const iva = r2(baseImponible * linea.ivaVentaPct)
   const totalVenta = r2(baseImponible + iva)
 
@@ -92,9 +98,24 @@ export function calcularLinea(linea: LineaServicio, feePct: number): LineaCalcul
   }
 }
 
-/** Cálculo de una operación: la suma de sus líneas. */
+/** Cálculo de una operación: la suma de sus líneas, con el descuento repartido. */
 export function calcularOperacion(op: Operacion): OperacionCalculada {
-  const lineas = op.lineas.map((l) => calcularLinea(l, op.feePct))
+  const brutos = op.lineas.map((l) => r2(l.cantidad * l.tarifaVenta))
+  const bruto = r2(brutos.reduce((a, b) => a + b, 0))
+  const descuento = Math.min(op.descuento, bruto)
+
+  // El descuento se reparte en proporción al importe de cada línea; el último
+  // céntimo va a la línea mayor para que la suma cuadre exacta.
+  const reparto = brutos.map((b) => (bruto > 0 ? r2((descuento * b) / bruto) : 0))
+  if (descuento > 0 && brutos.length > 0) {
+    const sobra = r2(descuento - reparto.reduce((a, b) => a + b, 0))
+    if (sobra !== 0) {
+      const mayor = brutos.indexOf(Math.max(...brutos))
+      reparto[mayor] = r2(reparto[mayor] + sobra)
+    }
+  }
+
+  const lineas = op.lineas.map((l, i) => calcularLinea(l, op.feePct, reparto[i]))
   const suma = (f: (l: LineaCalculada) => number) => r2(lineas.reduce((a, l) => a + f(l), 0))
 
   const totalVenta = suma((l) => l.totalVenta)
@@ -105,6 +126,7 @@ export function calcularOperacion(op: Operacion): OperacionCalculada {
     op,
     lineas,
     subtotalVenta: suma((l) => l.base),
+    descuento: r2(descuento),
     fee: suma((l) => l.fee),
     baseImponible: suma((l) => l.baseImponible),
     ivaVenta: suma((l) => l.iva),

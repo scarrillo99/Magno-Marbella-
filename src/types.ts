@@ -74,10 +74,22 @@ export interface Operacion {
   ubicacion: string
   jugador: string
   lineas: LineaServicio[]
-  /** Fee de servicio aplicado sobre el precio de cliente (0.20 = 20%). */
+  /**
+   * Fee de servicio sobre el precio de cliente (0.20 = 20%). En la hoja de
+   * control no existe: el margen sale del diferencial entre precio y coste,
+   * así que por defecto va a 0.
+   */
   feePct: number
+  /**
+   * Descuento en euros sobre el total de servicios, antes de IVA. Se reparte
+   * entre las líneas en proporción a su importe, para que cada una conserve
+   * su propio tipo de IVA.
+   */
+  descuento: number
   /** Importe ya cobrado al cliente. */
   pagado: number
+  /** Importe ya pagado a cada proveedor en esta operación, por su id. */
+  pagosProveedor: Record<string, number>
   notas: string
 }
 

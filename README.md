@@ -66,13 +66,19 @@ El IVA soportado es independiente: lo fija la factura del proveedor, no la forma
 cliente. Una instalación factura con IVA aunque al cliente se le cobre en efectivo, y esa asimetría
 queda reflejada en el beneficio.
 
+### Descuento
+
+Cada operación admite un descuento en euros sobre el total de servicios, antes de IVA, igual que la
+columna `Descuento` de la hoja. Se reparte entre las líneas en proporción a su importe, de modo que
+cada una conserva su propio tipo de IVA y la suma cuadra al céntimo.
+
 ### Fee de servicio
 
-El precio que se teclea es el que se le da al cliente **antes** del fee del 20 %, que se suma
-encima según el modelo de negocio original. La columna *Total cliente* de cada línea muestra el
-importe final ya con fee e IVA, así que no hay ambigüedad sobre lo que se factura. Si el precio
-acordado con el cliente ya es el final, basta con poner el fee a 0 en la operación (o en la
-temporada, desde Ajustes).
+La hoja de control no tiene fee: el margen sale del diferencial entre el precio de cliente y el coste
+de proveedor. Por eso las operaciones nuevas y la temporada 2027 arrancan con el fee a **0**.
+
+Las temporadas 2025 y 2026 lo mantienen al 20 % porque sus operaciones se reconstruyeron con él para
+cuadrar los totales declarados en el control de origen; se cambia desde Ajustes si hace falta.
 
 Y a nivel de temporada:
 
@@ -84,6 +90,27 @@ Beneficio neto real     = Margen bruto − Impuesto de sociedades
 
 Con el filtro en «todas las temporadas» el impuesto se calcula temporada a temporada con su propio
 tipo y solo sobre márgenes positivos.
+
+## Importar la hoja «MAGNO ENTRENOS»
+
+El control del día a día vive en la hoja de cálculo *CONTROL BUSSINES*, pestaña **MAGNO ENTRENOS**.
+Desde **Ajustes → Importar la hoja** se pegan sus filas, con la de cabecera, y se convierten en
+operaciones. El importador localiza las columnas por el nombre de la cabecera, no por su posición,
+así que la hoja puede crecer o moverse sin romper la importación.
+
+Cómo lee la hoja:
+
+| En la hoja | En la aplicación |
+| --- | --- |
+| `Fecha` (texto libre: «29,30 mayo - 1,2,3 junio») | fecha de la operación, tomando el primer día y mes; el texto completo queda en las notas |
+| `Lugar`, `Nombre` | ubicación y jugador |
+| `Cheff o Fisio o Villa`, `Campo`, `Entrenador`, `Gimnasio` + su `Hora` | línea de servicio con su cantidad y precio de cliente |
+| Segunda aparición de `Cheff`, `Fisio`, `Campo`, `Entrenador`, `Gimnasio` | coste de proveedor de esa misma línea |
+| `Descuento` | descuento de la operación |
+| `Pagado` | importe cobrado |
+
+Nada se guarda hasta confirmar: primero se muestra una vista previa con el total de cliente, el coste
+y el beneficio de cada fila, para cotejarlos con la hoja antes de importar.
 
 ## Preparar una temporada nueva
 
@@ -130,30 +157,29 @@ Siete facturas de profesionales autónomos llevan **retención de IRPF** (15 %, 
 en total: ese importe no se le paga al proveedor, se ingresa en Hacienda, y la aplicación lo descuenta
 del importe a pagar y lo muestra en su propio indicador.
 
-### Tarifario de partida
+### Tarifario
 
-No consta ninguna lista de precios en el control de origen, así que las tarifas se han calculado
-como la **media efectiva por servicio y proveedor** de las operaciones reales de cada temporada.
-Las de 2027 arrancan con esos valores y llevan el aviso «revisar antes de facturar» en sus notas.
+Los precios salen de la hoja de control de 2026:
 
-| Servicio | Proveedor | Precio cliente | Coste | Margen/unidad | Origen |
-| --- | --- | --- | --- | --- | --- |
-| Campo | Marbella Football Center | 82,57 € | 54,38 € | 44,70 € (45 %) | media 2026 |
-| Campo | Banus FC | 72,85 € | 75,00 € | 12,42 € (14 %) | media 2026 |
-| Campo | Dama de Noche | 86,19 € | 50,49 € | 52,94 € (51 %) | media 2025 |
-| Campo | Estepona Sports Complex | — | 75,00 € | — | inactiva, sin precio de venta |
-| Coach | Staff de Entrenadores Magno | 67,09 € | 24,72 € | 55,79 € (69 %) | media 2026 |
-| Chef | Villas & Hoteles Marbella | 117,26 € | 109,20 € | 31,51 € (22 %) | media 2026 |
-| Chef | Chef Privado Marbella | 178,33 € | 93,02 € | 120,98 € (57 %) | media 2025 |
-| Fisio | Fisioterapia Deportiva Marbella | 52,44 € | 23,97 € | 38,96 € (62 %) | media 2026 |
-| Gimnasio | Gimnasio High Performance | 62,66 € | 8,92 € | 66,27 € (88 %) | media 2026 |
+| Servicio | Precio cliente | Coste proveedor | Margen |
+| --- | --- | --- | --- |
+| Campo · Marbella Football Center | 480 € | 350 € | 130 € (27 %) |
+| Campo · Banus FC | 360 € | 250 € | 110 € (31 %) |
+| Campo · Estepona Football Center | 360 € | 250 € | 110 € (31 %) |
+| Entrenador | 110 € | 50 € | 60 € (55 %) |
+| Gimnasio | 95 € | 60 € | 35 € (37 %) |
+| Fisio | 70 € | 50 € | 20 € (29 %) |
+| Chef | 180 € | 120 € | 60 € (33 %) |
+
+En la hoja aparecen variantes —el entrenador también a 108 € de venta y 70 € de coste, el gimnasio a
+90, 85 y 80 €— que conviene revisar. La villa y el hotel se facturan por importe cerrado, no por
+tarifa, así que su línea queda inactiva.
 
 El margen por unidad es `precio cliente × (1 + fee) − coste de proveedor`. El IVA no entra: se
 repercute y se soporta al mismo tipo, así que no altera el margen.
 
-**Campo · Banus FC se vende por debajo de coste**: 72,85 € frente a 75,00 € que se pagan a la
-instalación. Solo el fee del 20 % mantiene la operación en positivo, y aun así deja un 14 % frente
-al 45 % de MFC. La sección Tarifas marca automáticamente cualquier tarifa en esta situación.
+La sección Tarifas marca automáticamente cualquier tarifa que se venda por debajo del coste del
+proveedor.
 
 El control de origen está cerrado **por jugador** (total facturado y total de coste), no por línea
 de servicio. Cada operación se reconstruye repartiendo esos totales entre los servicios realmente

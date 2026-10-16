@@ -76,7 +76,14 @@ function normalizarOperacion(raw: unknown, base: Operacion): Operacion {
     jugador: texto(o.jugador, base.jugador),
     lineas: Array.isArray(o.lineas) ? o.lineas.map(normalizarLinea) : migrarServiciosALineas(o),
     feePct: numero(o.feePct, 0.2),
+    descuento: numero(o.descuento),
     pagado: numero(o.pagado),
+    pagosProveedor:
+      o.pagosProveedor && typeof o.pagosProveedor === 'object'
+        ? Object.fromEntries(
+            Object.entries(o.pagosProveedor as Record<string, unknown>).map(([k, v]) => [k, numero(v)]),
+          )
+        : {},
     notas: texto(o.notas),
   }
 }
