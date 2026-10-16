@@ -26,6 +26,7 @@ const lineaVacia = (ivaPct: number): LineaServicio => ({
   tarifaVenta: 0,
   tarifaCoste: 0,
   proveedorId: null,
+  proveedorNombre: '',
   ivaVentaPct: ivaPct,
   ivaCostePct: ivaPct,
 })
@@ -83,6 +84,7 @@ export function OperacionModal({
       tarifaVenta: t.tarifaVenta,
       tarifaCoste: t.tarifaCoste,
       proveedorId: t.proveedorId,
+      proveedorNombre: estado.proveedores.find((p) => p.id === t.proveedorId)?.nombre ?? '',
       ivaVentaPct: ivaVentaComun ?? ivaTemporada,
       ivaCostePct: ivaTemporada,
     })
@@ -98,11 +100,6 @@ export function OperacionModal({
 
   const aplicarIvaVentaATodas = (valor: number) =>
     setBorrador({ ...borrador, lineas: borrador.lineas.map((l) => ({ ...l, ivaVentaPct: valor })) })
-
-  const opcionesProveedor = [
-    { valor: '', texto: '— Sin proveedor —' },
-    ...estado.proveedores.filter((p) => p.activo).map((p) => ({ valor: p.id, texto: p.nombre })),
-  ]
 
   const cliente = estado.clientes.find(
     (c) => c.nombre.trim().toLowerCase() === borrador.jugador.trim().toLowerCase(),
@@ -351,25 +348,24 @@ export function OperacionModal({
                           {eur(lc.totalVenta)}
                         </td>
                         <td className="px-2 py-2">
-                          <select
-                            value={l.proveedorId ?? ''}
+                          <input
+                            value={l.proveedorNombre}
                             onChange={(e) => {
-                              const id = e.target.value || null
-                              const prov = estado.proveedores.find((p) => p.id === id)
+                              const nombre = e.target.value
+                              const prov = estado.proveedores.find(
+                                (p) => p.nombre.trim().toLowerCase() === nombre.trim().toLowerCase(),
+                              )
                               setLinea(l.id, {
-                                proveedorId: id,
+                                proveedorNombre: nombre,
+                                proveedorId: prov?.id ?? null,
                                 ...(prov && l.tarifaCoste === 0 ? { tarifaCoste: prov.tarifaHabitual } : {}),
                               })
                             }}
-                            className="celda-edit min-w-[142px]"
+                            list="lista-proveedores-linea"
+                            placeholder="Proveedor o restaurante"
+                            className="celda-edit min-w-[172px]"
                             aria-label={`Proveedor de ${l.nombre || 'la línea'}`}
-                          >
-                            {opcionesProveedor.map((o) => (
-                              <option key={o.valor} value={o.valor} className="bg-panel">
-                                {o.texto}
-                              </option>
-                            ))}
-                          </select>
+                          />
                         </td>
                         <td className="px-2 py-2">
                           <NumeroInput
@@ -420,6 +416,19 @@ export function OperacionModal({
               </table>
             </div>
           )}
+
+          <datalist id="lista-proveedores-linea">
+            {[
+              ...new Set([
+                ...estado.proveedores.filter((p) => p.activo).map((p) => p.nombre),
+                ...estado.operaciones.flatMap((o) => o.lineas.map((l) => l.proveedorNombre)),
+              ]),
+            ]
+              .filter(Boolean)
+              .map((n) => (
+                <option key={n} value={n} />
+              ))}
+          </datalist>
 
           <datalist id="lista-servicios">
             {[

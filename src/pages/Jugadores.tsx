@@ -16,7 +16,7 @@ import {
 import { Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import { useStore } from '../store/store'
 import { agruparPorJugador, calcularOperacion, type FilaJugador } from '../lib/calc'
-import { eur, eur0, pct } from '../lib/format'
+import { eur, eur0, fechaCorta, pct } from '../lib/format'
 import { Badge, Barra, Boton, Confirmacion, Panel, Vacio } from '../components/ui'
 import { ClienteModal, clienteVacio } from '../components/ClienteModal'
 import type { Cliente } from '../types'
@@ -234,12 +234,13 @@ export function Jugadores() {
         }
       >
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] text-sm">
+          <table className="w-full min-w-[1000px] text-sm">
             <thead>
               <tr className="border-b border-borde text-[11px] uppercase tracking-wider text-tinta-3">
                 <th className="px-5 py-2.5 text-left font-medium">Jugador</th>
                 <th className="px-3 py-2.5 text-left font-medium">Ubicaciones</th>
                 <th className="px-3 py-2.5 text-right font-medium">Ops.</th>
+                <th className="px-3 py-2.5 text-left font-medium">Última vez</th>
                 <th className="px-3 py-2.5 text-right font-medium">Facturado</th>
                 <th className="px-3 py-2.5 text-right font-medium">Coste</th>
                 <th className="px-3 py-2.5 text-right font-medium">Margen</th>
@@ -261,6 +262,9 @@ export function Jugadores() {
                   </td>
                   <td className="px-3 py-3 text-xs text-tinta-2">{j.ubicaciones.join(' · ') || '—'}</td>
                   <td className="cifra px-3 py-3 text-right text-tinta-2">{j.operaciones}</td>
+                  <td className="px-3 py-3 text-xs text-tinta-2">
+                    {j.ultimaFecha ? fechaCorta(j.ultimaFecha) : '—'}
+                  </td>
                   <td className="cifra px-3 py-3 text-right font-medium text-oro">{eur(j.facturado)}</td>
                   <td className="cifra px-3 py-3 text-right text-rojo">{eur(j.coste)}</td>
                   <td

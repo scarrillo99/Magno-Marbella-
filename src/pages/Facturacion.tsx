@@ -27,6 +27,7 @@ export function Facturacion() {
     guardarRecibida,
     borrarRecibida,
     guardarRepartoCompartido,
+    alternarCategoriaDirecta,
   } = useStore()
 
   const [libro, setLibro] = useState<Libro>('emitidas')
@@ -319,13 +320,14 @@ export function Facturacion() {
         <Panel
           sinPadding
           titulo="Gasto por categoría"
-          descripcion="Importe ya imputado a Magno, con los compartidos al porcentaje de reparto"
+          descripcion="Importe imputado a Magno. «Directo» entra en el margen bruto; «estructura», en otros gastos"
         >
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-borde text-[11px] uppercase tracking-wider text-tinta-3">
                   <th className="px-5 py-2.5 text-left font-medium">Categoría</th>
+                  <th className="px-3 py-2.5 text-center font-medium">Tipo</th>
                   <th className="px-3 py-2.5 text-right font-medium">Facturas</th>
                   <th className="px-3 py-2.5 text-right font-medium">Importe</th>
                   <th className="px-5 py-2.5 text-right font-medium">Peso</th>
@@ -339,6 +341,18 @@ export function Facturacion() {
                       <div className="mt-1.5 max-w-[220px]">
                         <Barra valor={c.pesoPct} color="var(--color-rojo)" />
                       </div>
+                    </td>
+                    <td className="px-3 py-3 text-center">
+                      <button
+                        type="button"
+                        onClick={() => alternarCategoriaDirecta(c.categoria)}
+                        title="Cambiar entre coste directo del servicio y gasto de estructura"
+                        className="inline-flex"
+                      >
+                        <Badge tono={estado.categoriasDirectas.includes(c.categoria) ? 'azul' : 'neutro'}>
+                          {estado.categoriasDirectas.includes(c.categoria) ? 'Directo' : 'Estructura'}
+                        </Badge>
+                      </button>
                     </td>
                     <td className="cifra px-3 py-3 text-right text-tinta-2">{c.facturas}</td>
                     <td className="cifra px-3 py-3 text-right font-medium text-rojo">{eur(c.importe)}</td>

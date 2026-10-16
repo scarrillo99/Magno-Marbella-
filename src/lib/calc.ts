@@ -242,6 +242,8 @@ export function tipoImpuesto(temporadas: Temporada[], year: number): number {
 export interface FilaJugador {
   jugador: string
   operaciones: number
+  /** Fecha de la operación más reciente. */
+  ultimaFecha: string
   ubicaciones: string[]
   facturado: number
   coste: number
@@ -260,6 +262,7 @@ export function agruparPorJugador(calculadas: OperacionCalculada[]): FilaJugador
       row = {
         jugador: key,
         operaciones: 0,
+        ultimaFecha: '',
         ubicaciones: [],
         facturado: 0,
         coste: 0,
@@ -271,6 +274,7 @@ export function agruparPorJugador(calculadas: OperacionCalculada[]): FilaJugador
       map.set(key, row)
     }
     row.operaciones += 1
+    if (c.op.fecha > row.ultimaFecha) row.ultimaFecha = c.op.fecha
     row.facturado += c.totalVenta
     row.coste += c.totalCoste
     row.beneficio += c.beneficioOperativo
@@ -366,12 +370,12 @@ export function agruparPorProveedor(
   for (const c of calculadas) {
     for (const l of c.lineas) {
       if (l.totalCoste === 0) continue
-      const pid = l.linea.proveedorId ?? 'sin-asignar'
-      const cur = map.get(pid) ?? { coste: 0, ops: new Set<string>() }
+      const pid = l.linea.proveedorId ?? l.linea.proveedorNombre.trim() ?? ''
+      const cur = map.get(pid || 'sin-asignar') ?? { coste: 0, ops: new Set<string>() }
       cur.coste += l.totalCoste
       cur.ops.add(c.op.id)
       total += l.totalCoste
-      map.set(pid, cur)
+      map.set(pid || 'sin-asignar', cur)
     }
   }
 
@@ -380,7 +384,8 @@ export function agruparPorProveedor(
     const liqs = liquidacionesFiltradas.filter((l) => l.proveedorId === pid)
     return {
       proveedorId: pid,
-      nombre: prov?.nombre ?? 'Sin asignar',
+      // Un proveedor puntual no tiene ficha: la clave es su propio nombre.
+      nombre: prov?.nombre ?? (pid === 'sin-asignar' ? 'Sin asignar' : pid),
       tipo: prov?.tipo ?? 'otro',
       coste: r2(v.coste),
       pesoPct: total > 0 ? v.coste / total : 0,
@@ -547,6 +552,210 @@ export function agruparGastoPorCategoria(
     .sort((a, b) => b.importe - a.importe)
 }
 
+/**
+ * Categorías de gasto que son coste directo del servicio prestado. El resto
+ * son gastos de estructura, que no se imputan a una operación concreta.
+ */
+export const CATEGORIAS_DIRECTAS_POR_DEFECTO = [
+  'campoGym',
+  'entrenadoresFisios',
+  'operacionJugador',
+  'alquilerCoche',
+  'hotel',
+]
+
+export interface LineaResultado {
+  concepto: string
+  importe: number
+  detalle?: { etiqueta: string; importe: number }[]
+}
+
+export interface ResultadoTemporada {
+  ingresos: number
+  costesDirectos: number
+  otrosGastos: number
+  detalleDirectos: { etiqueta: string; importe: number }[]
+  detalleOtros: { etiqueta: string; importe: number }[]
+  margenBruto: number
+  resultadoAntesImpuestos: number
+  impuestoPct: number
+  impuesto: number
+  neto: number
+  /** Beneficio por cada euro facturado, después de impuestos. */
+  netoPct: number
+}
+
+/**
+ * Resultado real de una temporada, sobre base imponible.
+ *
+ * El IVA no entra: se repercute al cliente y se soporta del proveedor, se
+ * liquida con Hacienda y no es ni ingreso ni gasto. Incluirlo en ambos lados
+ * infla el resultado. La retención de IRPF tampoco es un gasto: es parte del
+ * coste del profesional que se ingresa en Hacienda en lugar de pagárselo a él.
+ */
+export function resultadoTemporada(
+  emitidas: FacturaEmitida[],
+  recibidas: FacturaRecibida[],
+  categorias: Record<string, string>,
+  categoriasDirectas: string[],
+  repartoPct: number,
+  impuestoPct: number,
+): ResultadoTemporada {
+  const ingresos = r2(emitidas.reduce((a, f) => a + f.base, 0))
+
+  const directas = new Set(categoriasDirectas)
+  const porCat = new Map<string, { directa: boolean; importe: number }>()
+  for (const f of recibidas) {
+    const peso = f.compartida ? repartoPct : 1
+    const cur = porCat.get(f.categoria) ?? { directa: directas.has(f.categoria), importe: 0 }
+    cur.importe += f.base * peso
+    porCat.set(f.categoria, cur)
+  }
+
+  const agrupar = (directa: boolean) =>
+    [...porCat.entries()]
+      .filter(([, v]) => v.directa === directa)
+      .map(([k, v]) => ({ etiqueta: categorias[k] ?? k, importe: r2(v.importe) }))
+      .filter((x) => x.importe !== 0)
+      .sort((a, b) => b.importe - a.importe)
+
+  const detalleDirectos = agrupar(true)
+  const detalleOtros = agrupar(false)
+  const costesDirectos = r2(detalleDirectos.reduce((a, x) => a + x.importe, 0))
+  const otrosGastos = r2(detalleOtros.reduce((a, x) => a + x.importe, 0))
+
+  const margenBruto = r2(ingresos - costesDirectos)
+  const resultadoAntesImpuestos = r2(margenBruto - otrosGastos)
+  const impuesto = r2(Math.max(0, resultadoAntesImpuestos) * impuestoPct)
+  const neto = r2(resultadoAntesImpuestos - impuesto)
+
+  return {
+    ingresos,
+    costesDirectos,
+    otrosGastos,
+    detalleDirectos,
+    detalleOtros,
+    margenBruto,
+    resultadoAntesImpuestos,
+    impuestoPct,
+    impuesto,
+    neto,
+    netoPct: ingresos > 0 ? neto / ingresos : 0,
+  }
+}
+
+export interface PuntoMes {
+  mes: number
+  etiqueta: string
+  ingresos: number
+  actividad: number
+  operaciones: number
+}
+
+export interface PuntoDia {
+  dia: number
+  etiqueta: string
+  operaciones: number
+  importe: number
+}
+
+const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+const DIAS_CORTOS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
+
+/** Distribución por mes del año: facturación emitida y actividad operativa. */
+export function estacionalidadPorMes(
+  emitidas: FacturaEmitida[],
+  calculadas: OperacionCalculada[],
+): PuntoMes[] {
+  const meses = MESES_CORTOS.map((etiqueta, i) => ({
+    mes: i + 1,
+    etiqueta,
+    ingresos: 0,
+    actividad: 0,
+    operaciones: 0,
+  }))
+  for (const f of emitidas) {
+    const m = Number(f.fecha.slice(5, 7))
+    if (m >= 1 && m <= 12) meses[m - 1].ingresos += f.base
+  }
+  for (const c of calculadas) {
+    const m = Number(c.op.fecha.slice(5, 7))
+    if (m >= 1 && m <= 12) {
+      meses[m - 1].actividad += c.subtotalVenta
+      meses[m - 1].operaciones += 1
+    }
+  }
+  return meses.map((m) => ({ ...m, ingresos: r2(m.ingresos), actividad: r2(m.actividad) }))
+}
+
+/** Reparto de la actividad por día de la semana, según la fecha de operación. */
+export function estacionalidadPorDia(calculadas: OperacionCalculada[]): PuntoDia[] {
+  const dias = DIAS_CORTOS.map((etiqueta, i) => ({ dia: i, etiqueta, operaciones: 0, importe: 0 }))
+  for (const c of calculadas) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(c.op.fecha)
+    if (!m) continue
+    // Mediodía UTC: evita que el cambio de zona horaria mueva el día.
+    const d = new Date(`${c.op.fecha}T12:00:00Z`).getUTCDay()
+    dias[d].operaciones += 1
+    dias[d].importe += c.subtotalVenta
+  }
+  // La semana empieza en lunes.
+  return [...dias.slice(1), dias[0]].map((d) => ({ ...d, importe: r2(d.importe) }))
+}
+
+export interface FichaRecurrencia {
+  cliente: string
+  operaciones: number
+  facturas: number
+  importe: number
+  primera: string
+  ultima: string
+  /** Días desde la última vez, respecto a `hoy`. */
+  diasDesde: number | null
+}
+
+/** Recurrencia de cada cliente: cuántas veces vino y cuándo fue la última. */
+export function recurrenciaClientes(
+  calculadas: OperacionCalculada[],
+  emitidas: FacturaEmitida[],
+  hoy: string,
+): FichaRecurrencia[] {
+  const map = new Map<string, FichaRecurrencia>()
+  const tocar = (nombre: string, fecha: string, importe: number, esOperacion: boolean) => {
+    const clave = nombre.trim()
+    if (!clave) return
+    const cur =
+      map.get(clave.toLowerCase()) ??
+      ({
+        cliente: clave,
+        operaciones: 0,
+        facturas: 0,
+        importe: 0,
+        primera: fecha,
+        ultima: fecha,
+        diasDesde: null,
+      } as FichaRecurrencia)
+    if (esOperacion) cur.operaciones += 1
+    else cur.facturas += 1
+    cur.importe += importe
+    if (fecha && fecha < cur.primera) cur.primera = fecha
+    if (fecha && fecha > cur.ultima) cur.ultima = fecha
+    map.set(clave.toLowerCase(), cur)
+  }
+
+  for (const c of calculadas) tocar(c.op.jugador, c.op.fecha, c.subtotalVenta, true)
+  for (const f of emitidas) tocar(f.cliente, f.fecha, f.base, false)
+
+  const hoyMs = Date.parse(`${hoy}T12:00:00Z`)
+  return [...map.values()]
+    .map((f) => ({
+      ...f,
+      importe: r2(f.importe),
+      diasDesde: f.ultima ? Math.round((hoyMs - Date.parse(`${f.ultima}T12:00:00Z`)) / 86400000) : null,
+    }))
+    .sort((a, b) => b.operaciones + b.facturas - (a.operaciones + a.facturas) || b.importe - a.importe)
+}
+
 export interface PagoProveedor {
   proveedorId: string
   nombre: string
@@ -567,10 +776,12 @@ export function pagosPorProveedor(
   const map = new Map<string, PagoProveedor>()
   for (const l of calc.lineas) {
     if (l.totalCoste === 0) continue
-    const pid = l.linea.proveedorId ?? 'sin-asignar'
+    const pid = l.linea.proveedorId || l.linea.proveedorNombre.trim() || 'sin-asignar'
     const cur = map.get(pid) ?? {
       proveedorId: pid,
-      nombre: proveedores.find((p) => p.id === pid)?.nombre ?? 'Sin proveedor asignado',
+      nombre:
+        proveedores.find((p) => p.id === pid)?.nombre ??
+        (pid === 'sin-asignar' ? 'Sin proveedor asignado' : pid),
       base: 0,
       iva: 0,
       total: 0,

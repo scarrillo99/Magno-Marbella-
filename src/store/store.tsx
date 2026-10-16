@@ -65,6 +65,7 @@ interface Store {
   guardarRecibida: (f: FacturaRecibida) => void
   borrarRecibida: (id: string) => void
   guardarCategorias: (c: Record<string, string>) => void
+  alternarCategoriaDirecta: (clave: string) => void
   guardarRepartoCompartido: (pct: number) => void
 
   guardarTemporada: (t: Temporada) => void
@@ -328,6 +329,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setEstado((prev) => ({ ...prev, categoriasGasto: c }))
   }, [])
 
+  const alternarCategoriaDirecta = useCallback<Store['alternarCategoriaDirecta']>((clave) => {
+    setEstado((prev) => ({
+      ...prev,
+      categoriasDirectas: prev.categoriasDirectas.includes(clave)
+        ? prev.categoriasDirectas.filter((c) => c !== clave)
+        : [...prev.categoriasDirectas, clave],
+    }))
+  }, [])
+
   const guardarRepartoCompartido = useCallback<Store['guardarRepartoCompartido']>((pct) => {
     setEstado((prev) => ({ ...prev, repartoCompartidoPct: Math.max(0, Math.min(1, pct)) }))
   }, [])
@@ -388,6 +398,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       guardarRecibida,
       borrarRecibida,
       guardarCategorias,
+      alternarCategoriaDirecta,
       guardarRepartoCompartido,
       guardarTemporada,
       borrarTemporada,

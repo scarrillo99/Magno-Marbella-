@@ -46,6 +46,7 @@ function migrarServiciosALineas(raw: Record<string, unknown>): LineaServicio[] {
       tarifaVenta: numero(l!.tarifaVenta),
       tarifaCoste: numero(l!.tarifaCoste),
       proveedorId: typeof l!.proveedorId === 'string' ? l!.proveedorId : null,
+      proveedorNombre: '',
       ivaVentaPct,
       ivaCostePct,
     }))
@@ -60,6 +61,7 @@ function normalizarLinea(raw: unknown): LineaServicio {
     tarifaVenta: numero(l.tarifaVenta),
     tarifaCoste: numero(l.tarifaCoste),
     proveedorId: typeof l.proveedorId === 'string' ? l.proveedorId : null,
+    proveedorNombre: texto(l.proveedorNombre),
     ivaVentaPct: numero(l.ivaVentaPct),
     ivaCostePct: numero(l.ivaCostePct),
   }
@@ -205,6 +207,9 @@ export function normalizarEstado(raw: unknown): AppState {
       s.categoriasGasto && typeof s.categoriasGasto === 'object'
         ? (s.categoriasGasto as Record<string, string>)
         : base.categoriasGasto,
+    categoriasDirectas: Array.isArray(s.categoriasDirectas)
+      ? s.categoriasDirectas.filter((c): c is string => typeof c === 'string')
+      : base.categoriasDirectas,
     repartoCompartidoPct: numero(s.repartoCompartidoPct, 0.5),
     ubicaciones: Array.isArray(s.ubicaciones) && s.ubicaciones.length > 0
       ? s.ubicaciones.filter((u): u is string => typeof u === 'string')

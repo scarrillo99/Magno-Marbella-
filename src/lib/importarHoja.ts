@@ -146,6 +146,7 @@ export function importarHojaMagno(
         tarifaVenta: precioVenta,
         tarifaCoste: precioCoste,
         proveedorId: proveedorPorServicio[b.nombre] ?? null,
+        proveedorNombre: '',
         ivaVentaPct: 0.21,
         ivaCostePct: 0.21,
       })

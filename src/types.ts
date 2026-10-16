@@ -1,40 +1,71 @@
 /** Modelo de datos de Magno Marbella (Entrenos Sports Services). */
 
 /** Servicios facturables. El orden define el orden de presentación en toda la app. */
-export const SERVICIOS = ['chef', 'campo', 'coach', 'gimnasio', 'fisio'] as const
+export const SERVICIOS = [
+  'campo',
+  'coach',
+  'gimnasio',
+  'fisio',
+  'chef',
+  'villa',
+  'coche',
+  'barco',
+  'restauracion',
+  'otro',
+] as const
 export type ServicioKey = (typeof SERVICIOS)[number]
 
 export const SERVICIO_LABEL: Record<ServicioKey, string> = {
-  chef: 'Chef / Villa / Hotel',
   campo: 'Campo',
   coach: 'Entrenador / Coach',
   gimnasio: 'Gimnasio',
   fisio: 'Fisio',
+  chef: 'Chef',
+  villa: 'Villa / Hotel',
+  coche: 'Alquiler de coche',
+  barco: 'Barco',
+  restauracion: 'Restauración',
+  otro: 'Otros servicios',
 }
 
 export const SERVICIO_SHORT: Record<ServicioKey, string> = {
-  chef: 'Chef',
   campo: 'Campo',
   coach: 'Coach',
   gimnasio: 'Gym',
   fisio: 'Fisio',
+  chef: 'Chef',
+  villa: 'Villa',
+  coche: 'Coche',
+  barco: 'Barco',
+  restauracion: 'Restaurante',
+  otro: 'Otros',
 }
 
 /** Unidad en singular, para textos del tipo "precio por hora". */
 export const SERVICIO_UNIDAD_SINGULAR: Record<ServicioKey, string> = {
-  chef: 'día',
   campo: 'hora',
   coach: 'hora',
   gimnasio: 'hora',
   fisio: 'sesión',
+  chef: 'día',
+  villa: 'noche',
+  coche: 'día',
+  barco: 'día',
+  restauracion: 'reserva',
+  otro: 'unidad',
 }
 
 export const SERVICIO_UNIDAD: Record<ServicioKey, string> = {
-  chef: 'días',
   campo: 'horas',
   coach: 'horas',
   gimnasio: 'horas',
   fisio: 'sesiones',
+  chef: 'días',
+  villa: 'noches',
+  coche: 'días',
+  barco: 'días',
+  restauracion: 'reservas',
+  otro: 'unidades',
 }
 
 /**
@@ -54,8 +85,14 @@ export interface LineaServicio {
   tarifaVenta: number
   /** Coste por unidad del proveedor, antes de IVA. */
   tarifaCoste: number
-  /** Proveedor al que se liquida el coste de esta línea. */
+  /** Proveedor registrado al que se liquida el coste, si lo hay. */
   proveedorId: string | null
+  /**
+   * Nombre del proveedor tal cual: el restaurante, la empresa del barco, la
+   * villa… Permite anotar un proveedor puntual sin darlo de alta en la ficha.
+   * Si coincide con uno registrado, se enlaza también por `proveedorId`.
+   */
+  proveedorNombre: string
   /** IVA repercutido al cliente. 0 = sin IVA (cobro en efectivo). */
   ivaVentaPct: number
   /** IVA soportado en la factura del proveedor. 0 = proveedor sin IVA. */
@@ -239,6 +276,8 @@ export interface AppState {
   facturasRecibidas: FacturaRecibida[]
   /** Categorías de gasto del libro de recibidas, editables. */
   categoriasGasto: Record<string, string>
+  /** Categorías que son coste directo del servicio; el resto, estructura. */
+  categoriasDirectas: string[]
   /** Porcentaje de los gastos compartidos que se imputa a Magno (0.5 = 50%). */
   repartoCompartidoPct: number
   ubicaciones: string[]

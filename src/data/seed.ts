@@ -5,7 +5,7 @@ import {
   type Operacion,
   type ServicioKey,
 } from '../types'
-import { r2 } from '../lib/calc'
+import { CATEGORIAS_DIRECTAS_POR_DEFECTO, r2 } from '../lib/calc'
 import { CATEGORIAS_GASTO, FACTURAS_EMITIDAS, FACTURAS_RECIBIDAS } from './facturas2026'
 
 /* -------------------------------------------------------------------------
@@ -98,6 +98,7 @@ function construir(def: DefOperacion): Operacion {
       tarifaVenta: m.cantidad > 0 ? r2(ventaLinea / m.cantidad) : 0,
       tarifaCoste: m.cantidad > 0 ? r2(costeLinea / m.cantidad) : 0,
       proveedorId: m.proveedorId,
+      proveedorNombre: PROVEEDORES.find((p) => p.id === m.proveedorId)?.nombre ?? '',
       ivaVentaPct,
       ivaCostePct,
     }
@@ -535,6 +536,7 @@ export function estadoInicial(): AppState {
     facturasEmitidas: FACTURAS_EMITIDAS.map((f) => ({ ...f })),
     facturasRecibidas: FACTURAS_RECIBIDAS.map((f) => ({ ...f })),
     categoriasGasto: { ...CATEGORIAS_GASTO },
+    categoriasDirectas: [...CATEGORIAS_DIRECTAS_POR_DEFECTO],
     repartoCompartidoPct: 0.5,
     ubicaciones: [...UBICACIONES],
     resumenesDeclarados: RESUMENES_DECLARADOS.map((r) => ({
