@@ -319,7 +319,7 @@ export function Ajustes() {
       >
         <ol className="mb-4 space-y-1 text-xs leading-relaxed text-tinta-2">
           <li>1. En la hoja, selecciona desde la fila de cabecera (la que pone «Fecha · Lugar · Nombre») hasta la última fila con datos.</li>
-          <li>2. Copia con ⌘C y pega aquí abajo.</li>
+          <li>2. Copia con ⌘C y pega aquí abajo. También vale el contenido de un CSV descargado: se reconoce el separador solo, sea tabulador, coma o punto y coma.</li>
           <li>3. Revisa la vista previa antes de confirmar: nada se guarda hasta que pulses «Importar».</li>
         </ol>
         <textarea

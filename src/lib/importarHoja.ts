@@ -33,6 +33,62 @@ const SERVICIOS_HOJA: ServicioHoja[] = [
   { nombre: 'Fisio', venta: '', coste: 'fisio' },
 ]
 
+/**
+ * Detecta el separador de la tabla pegada. Copiar desde Google Sheets da
+ * tabuladores; un CSV descargado da comas, y la exportación en español suele
+ * dar punto y coma. Se elige el que más columnas produzca de forma estable.
+ */
+function detectarSeparador(lineas: string[]): string {
+  const candidatos = ['\t', ';', ',']
+  let mejor = '\t'
+  let mejorColumnas = 0
+  for (const sep of candidatos) {
+    const columnas = lineas
+      .slice(0, 12)
+      .map((l) => partirLinea(l, sep).length)
+      .sort((a, b) => b - a)[0] ?? 0
+    if (columnas > mejorColumnas) {
+      mejorColumnas = columnas
+      mejor = sep
+    }
+  }
+  return mejor
+}
+
+/**
+ * Parte una línea respetando las comillas: en un CSV español, «3.600,00 €» va
+ * entrecomillado porque lleva una coma dentro, y partir a lo bruto lo rompería.
+ */
+function partirLinea(linea: string, sep: string): string[] {
+  const campos: string[] = []
+  let actual = ''
+  let entreComillas = false
+  for (let i = 0; i < linea.length; i += 1) {
+    const c = linea[i]
+    if (c === '"') {
+      if (entreComillas && linea[i + 1] === '"') {
+        actual += '"'
+        i += 1
+      } else {
+        entreComillas = !entreComillas
+      }
+    } else if (c === sep && !entreComillas) {
+      campos.push(actual)
+      actual = ''
+    } else {
+      actual += c
+    }
+  }
+  campos.push(actual)
+  return campos
+}
+
+function partirTabla(texto: string): string[][] {
+  const lineas = texto.split(/\r?\n/).filter((l) => l.trim() !== '')
+  const sep = detectarSeparador(lineas)
+  return lineas.map((l) => partirLinea(l, sep)).filter((f) => f.some((c) => c.trim() !== ''))
+}
+
 const normalizar = (s: string) =>
   s
     .trim()
@@ -68,10 +124,7 @@ export function importarHojaMagno(
   proveedorPorServicio: Record<string, string | null> = {},
 ): ResultadoImportacion {
   const avisos: string[] = []
-  const filas = texto
-    .split(/\r?\n/)
-    .map((l) => l.split('\t'))
-    .filter((f) => f.some((c) => c.trim() !== ''))
+  const filas = partirTabla(texto)
 
   if (filas.length < 2) {
     return { operaciones: [], avisos: ['Hacen falta la fila de cabecera y al menos una fila de datos.'], sinReconocer: [] }
