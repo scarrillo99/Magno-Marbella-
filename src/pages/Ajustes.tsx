@@ -44,13 +44,19 @@ export function Ajustes() {
           estado.temporadas,
         )
         const margenDeclarado = r2(d.totalFacturado - d.totalGastosProveedores)
+        // Cada temporada se compara en la base en la que esta declarada.
+        const facturado = d.sinIva ? calc.baseImponible : calc.totalFacturado
+        const costes = d.sinIva ? calc.baseCoste : calc.totalCostesProveedores
         return {
           declarado: d,
           calc,
           margenDeclarado,
-          difFacturado: r2(calc.totalFacturado - d.totalFacturado),
-          difCostes: r2(calc.totalCostesProveedores - d.totalGastosProveedores),
-          difMargen: r2(calc.margenBruto - margenDeclarado),
+          facturado,
+          costes,
+          margen: r2(facturado - costes),
+          difFacturado: r2(facturado - d.totalFacturado),
+          difCostes: r2(costes - d.totalGastosProveedores),
+          difMargen: r2(r2(facturado - costes) - margenDeclarado),
         }
       }),
     [estado.operaciones, estado.temporadas, estado.resumenesDeclarados],
@@ -219,7 +225,7 @@ export function Ajustes() {
         </div>
 
         <div className="space-y-4">
-          {conciliacion.map(({ declarado, calc, margenDeclarado, difFacturado, difCostes, difMargen }) => (
+          {conciliacion.map(({ declarado, calc, margenDeclarado, facturado, costes, margen, difFacturado, difCostes, difMargen }) => (
             <div key={declarado.temporada} className="overflow-x-auto rounded-xl border border-borde">
               <table className="w-full min-w-[680px] text-sm">
                 <thead>
@@ -231,9 +237,9 @@ export function Ajustes() {
                   </tr>
                 </thead>
                 <tbody>
-                  <FilaConciliacion label="Total facturado" declarado={declarado.totalFacturado} calculado={calc.totalFacturado} diferencia={difFacturado} />
-                  <FilaConciliacion label="Gastos de proveedores" declarado={declarado.totalGastosProveedores} calculado={calc.totalCostesProveedores} diferencia={difCostes} />
-                  <FilaConciliacion label="Margen bruto" declarado={margenDeclarado} calculado={calc.margenBruto} diferencia={difMargen} />
+                  <FilaConciliacion label={declarado.sinIva ? 'Total facturado (base)' : 'Total facturado'} declarado={declarado.totalFacturado} calculado={facturado} diferencia={difFacturado} />
+                  <FilaConciliacion label={declarado.sinIva ? 'Gastos de proveedores (base)' : 'Gastos de proveedores'} declarado={declarado.totalGastosProveedores} calculado={costes} diferencia={difCostes} />
+                  <FilaConciliacion label="Margen bruto" declarado={margenDeclarado} calculado={margen} diferencia={difMargen} />
                   <FilaConciliacion
                     label={`Impuesto de sociedades (${pct(calc.impuestoPctEfectivo, 0)})`}
                     declarado={declarado.impuestos}

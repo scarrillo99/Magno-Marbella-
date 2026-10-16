@@ -114,7 +114,10 @@ export function normalizarEstado(raw: unknown): AppState {
     empresa: texto(s.empresa, base.empresa),
     temporadas: temporadas.sort((a, b) => a.year - b.year),
     operaciones: Array.isArray(s.operaciones)
-      ? s.operaciones.map((o) => normalizarOperacion(o, plantillaOp))
+      ? sustituir2026Reconstruida(
+          s.operaciones.map((o) => normalizarOperacion(o, plantillaOp)),
+          base.operaciones,
+        )
       : base.operaciones,
     proveedores: Array.isArray(s.proveedores)
       ? s.proveedores.map((p) => ({
@@ -221,6 +224,34 @@ export function normalizarEstado(raw: unknown): AppState {
       ? (s.resumenesDeclarados as AppState['resumenesDeclarados'])
       : base.resumenesDeclarados,
   }
+}
+
+/**
+ * Las primeras versiones traian la temporada 2026 reconstruida a partir de
+ * totales (siete operaciones agregadas). Al cargar la hoja MAGNO ENTRENOS
+ * completa, esas siete se sustituyen por las 36 filas reales. Lo demas que
+ * haya guardado el usuario, 2025 y 2027 incluidos, se respeta.
+ */
+function sustituir2026Reconstruida(guardadas: Operacion[], semilla: Operacion[]): Operacion[] {
+  const reales = semilla.filter((o) => o.id.startsWith('op_2026_h'))
+  if (reales.length === 0) return guardadas
+  // Si ya estan las filas reales, no hay nada que migrar.
+  if (guardadas.some((o) => o.id.startsWith('op_2026_h'))) return guardadas
+
+  const reconstruidas = new Set([
+    'op_2026_monchu',
+    'op_2026_alvian',
+    'op_2026_noah',
+    'op_2026_tyler',
+    'op_2026_leo',
+    'op_2026_gabz',
+    'op_2026_varios',
+  ])
+  const restantes = guardadas.filter((o) => !reconstruidas.has(o.id))
+  // Solo se migra si lo guardado es de verdad la semilla antigua.
+  if (restantes.length === guardadas.length) return guardadas
+
+  return [...restantes, ...reales.map((o) => ({ ...o }))]
 }
 
 /** Fichas de cliente derivadas de los jugadores presentes en las operaciones. */

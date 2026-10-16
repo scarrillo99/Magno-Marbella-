@@ -279,6 +279,12 @@ export interface ResumenDeclarado {
   totalGastosProveedores: number
   impuestos: number
   beneficioNeto: number
+  /**
+   * `true` si las cifras declaradas son base imponible, sin IVA. Las primeras
+   * temporadas se declararon con IVA incluido, asi que la conciliacion tiene
+   * que saber contra que comparar.
+   */
+  sinIva?: boolean
   detalleCostes: { concepto: string; importe: number }[]
 }
 

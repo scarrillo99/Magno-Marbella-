@@ -29,10 +29,10 @@ type Orden =
 const COLUMNAS: { id: Orden; label: string; numerica: boolean }[] = [
   { id: 'fecha', label: 'Fecha', numerica: false },
   { id: 'jugador', label: 'Jugador / ubicación', numerica: false },
-  { id: 'totalVenta', label: 'Total venta', numerica: true },
+  { id: 'totalVenta', label: 'Facturado (IVA inc.)', numerica: true },
   { id: 'resta', label: 'Cobrado / pendiente', numerica: true },
-  { id: 'totalCoste', label: 'Total coste', numerica: true },
-  { id: 'beneficioOperativo', label: 'Beneficio', numerica: true },
+  { id: 'totalCoste', label: 'Coste (IVA inc.)', numerica: true },
+  { id: 'beneficioOperativo', label: 'Margen (base)', numerica: true },
   { id: 'margenPct', label: 'Margen', numerica: true },
 ]
 
@@ -499,11 +499,11 @@ function FilaOperacion({
                 <Resumen label={`Fee servicio (${pct(op.feePct, 0)})`} valor={eur(c.fee)} />
                 <Resumen label="Base imponible" valor={eur(c.baseImponible)} fuerte />
                 <Resumen label="IVA repercutido" valor={eur(c.ivaVenta)} />
-                <Resumen label="Total venta" valor={eur(c.totalVenta)} fuerte tono="text-oro" />
+                <Resumen label="Facturado con IVA" valor={eur(c.totalVenta)} fuerte tono="text-oro" />
                 <div className="!my-2 border-t border-borde" />
                 <Resumen label="Base coste" valor={eur(c.baseCoste)} />
                 <Resumen label="IVA soportado" valor={eur(c.ivaCoste)} />
-                <Resumen label="Total coste" valor={eur(c.totalCoste)} fuerte tono="text-rojo" />
+                <Resumen label="Coste con IVA" valor={eur(c.totalCoste)} fuerte tono="text-rojo" />
                 <div className="!my-2 border-t border-borde" />
                 <Resumen
                   label="Beneficio operativo"

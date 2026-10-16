@@ -32,10 +32,14 @@ export function Proveedores() {
   )
 
   const costeTotal = filas.reduce((a, f) => a + f.coste, 0)
-  const pendienteTotal = r2(
+  // Pagado y pendiente salen de las propias operaciones mas las liquidaciones
+  // sueltas; las filas ya traen las dos fuentes sumadas.
+  const pendienteTotal = r2(filas.reduce((a, f) => a + f.pendienteLiquidar, 0))
+  const liquidadoTotal = r2(filas.reduce((a, f) => a + f.liquidado, 0))
+  const pendienteLiquidaciones = r2(
     liquidacionesFiltradas.filter((l) => l.estado === 'pendiente').reduce((a, l) => a + l.importe, 0),
   )
-  const liquidadoTotal = r2(
+  const liquidadoLiquidaciones = r2(
     liquidacionesFiltradas.filter((l) => l.estado === 'pagada').reduce((a, l) => a + l.importe, 0),
   )
 
@@ -262,10 +266,10 @@ export function Proveedores() {
                     Total liquidaciones
                   </td>
                   <td className="cifra px-3 py-3 text-right text-tinta">
-                    {eur(liquidadoTotal + pendienteTotal)}
+                    {eur(liquidadoLiquidaciones + pendienteLiquidaciones)}
                   </td>
                   <td className="px-3 py-3 text-center text-xs font-normal text-tinta-3">
-                    {eur0(liquidadoTotal)} pagado · {eur0(pendienteTotal)} pendiente
+                    {eur0(liquidadoLiquidaciones)} pagado · {eur0(pendienteLiquidaciones)} pendiente
                   </td>
                   <td />
                 </tr>

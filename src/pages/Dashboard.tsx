@@ -30,6 +30,7 @@ import {
   agruparPorProveedor,
   agruparPorServicio,
   calcularOperacion,
+  r2,
   resumirOperaciones,
   serieMensual,
   tipoImpuesto,
@@ -56,9 +57,9 @@ export function Dashboard() {
   const temporadaConfig =
     temporadaSel === 'todas' ? null : estado.temporadas.find((t) => t.year === temporadaSel) ?? null
 
-  const pendienteLiquidar = liquidacionesFiltradas
-    .filter((l) => l.estado === 'pendiente')
-    .reduce((a, l) => a + l.importe, 0)
+  // Lo que queda por pagar a proveedores: sale de las propias operaciones,
+  // mas las liquidaciones sueltas que no cuelgan de ninguna.
+  const pendienteLiquidar = r2(proveedores.reduce((a, p) => a + p.pendienteLiquidar, 0))
 
   const cobroPct = resumen.totalFacturado > 0 ? resumen.cobrado / resumen.totalFacturado : 0
 
@@ -188,7 +189,18 @@ export function Dashboard() {
 
       {/* --------------------------- Fila secundaria ------------------------------ */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard etiqueta="Fee de servicio (20%)" valor={eur(resumen.feeServicio)} tono="cian" />
+        <KpiCard
+          etiqueta={
+            temporadaSel === 'todas'
+              ? 'Fee de servicio'
+              : `Fee de servicio (${pct(
+                  estado.temporadas.find((t) => t.year === Number(temporadaSel))?.feePct ?? 0,
+                  0,
+                )})`
+          }
+          valor={eur(resumen.feeServicio)}
+          tono="cian"
+        />
         <KpiCard
           etiqueta="IVA a liquidar"
           valor={eur(resumen.ivaLiquidar)}
@@ -437,20 +449,21 @@ export function Dashboard() {
                 { label: 'Subtotal de servicios facturados', valor: resumen.baseImponible - resumen.feeServicio },
                 { label: 'Fee de servicio', valor: resumen.feeServicio },
                 { label: 'Base imponible', valor: resumen.baseImponible, fuerte: true },
-                { label: 'IVA repercutido', valor: resumen.ivaRepercutido },
-                { label: 'Total facturado al cliente', valor: resumen.totalFacturado, fuerte: true },
                 { label: 'Base de coste de proveedores', valor: -resumen.baseCoste },
-                { label: 'IVA soportado', valor: -resumen.ivaSoportado },
-                { label: 'Total pagado a proveedores', valor: -resumen.totalCostesProveedores, fuerte: true },
                 { label: 'Margen bruto', valor: resumen.margenBruto, destacado: true },
                 { label: 'Impuesto de sociedades', valor: -resumen.impuestoSociedades },
                 { label: 'Beneficio neto real', valor: resumen.beneficioNeto, destacado: true },
-              ].map((fila) => (
+                { label: 'IVA repercutido al cliente', valor: resumen.ivaRepercutido, memo: true },
+                { label: 'IVA soportado de proveedores', valor: -resumen.ivaSoportado, memo: true },
+                { label: 'IVA a liquidar con Hacienda', valor: -resumen.ivaLiquidar, memo: true, fuerte: true },
+                { label: 'Total facturado al cliente, IVA incluido', valor: resumen.totalFacturado, memo: true },
+                { label: 'Total pagado a proveedores, IVA incluido', valor: -resumen.totalCostesProveedores, memo: true },
+              ].map((fila, i, filas) => (
                 <tr
                   key={fila.label}
                   className={`border-b border-borde/60 last:border-0 ${
                     fila.destacado ? 'bg-oro/6' : ''
-                  }`}
+                  } ${fila.memo && !filas[i - 1]?.memo ? 'border-t-2 border-t-borde' : ''}`}
                 >
                   <td
                     className={`px-5 py-2.5 ${

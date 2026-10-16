@@ -17,6 +17,8 @@ import {
   estacionalidadPorMes,
   recurrenciaClientes,
   resultadoTemporada,
+  resumirOperaciones,
+  agruparPorServicio,
 } from '../lib/calc'
 import { eur, eur0, fechaCorta, hoyISO, pct } from '../lib/format'
 import { Badge, Barra, Panel, Vacio } from '../components/ui'
@@ -33,9 +35,17 @@ export function Temporada() {
       ? (estado.temporadas.at(-1)?.impuestoPct ?? 0.25)
       : (estado.temporadas.find((t) => t.year === temporadaSel)?.impuestoPct ?? 0.25)
 
+  const resumen = useMemo(
+    () => resumirOperaciones(calculadas, estado.temporadas),
+    [calculadas, estado.temporadas],
+  )
+  const servicios = useMemo(() => agruparPorServicio(calculadas), [calculadas])
+
   const resultado = useMemo(
     () =>
       resultadoTemporada(
+        resumen,
+        servicios,
         emitidasFiltradas,
         recibidasFiltradas,
         estado.categoriasGasto,
@@ -43,7 +53,7 @@ export function Temporada() {
         estado.repartoCompartidoPct,
         impuestoPct,
       ),
-    [emitidasFiltradas, recibidasFiltradas, estado, impuestoPct],
+    [resumen, servicios, emitidasFiltradas, recibidasFiltradas, estado, impuestoPct],
   )
 
   const meses = useMemo(
@@ -90,7 +100,7 @@ export function Temporada() {
       {/* ------------------- Conciliación con la hoja de control ------------------ */}
       {declarada && (
         <Panel
-          titulo="La hoja de control dice otra cosa"
+          titulo="Contraste con la hoja de control"
           descripcion={`Facturación declarada en ${declarada.fuente}`}
         >
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -103,26 +113,45 @@ export function Temporada() {
             </div>
             <div className="rounded-xl border border-borde bg-panel-2/40 p-3">
               <p className="text-[11px] font-medium uppercase tracking-wider text-tinta-3">
-                Cargado en la aplicación
+                Cargado en operaciones
               </p>
               <p className="cifra mt-1 text-xl font-semibold text-tinta">{eur(resultado.ingresos)}</p>
-              <p className="text-[11px] text-tinta-2">de base, del libro de IVA</p>
-            </div>
-            <div className="rounded-xl border border-rojo/30 bg-rojo/8 p-3">
-              <p className="text-[11px] font-medium uppercase tracking-wider text-rojo">Falta por cargar</p>
-              <p className="cifra mt-1 text-xl font-semibold text-tinta">
-                {eur(r2(declarada.base - resultado.ingresos))}
-              </p>
               <p className="text-[11px] text-tinta-2">
-                {pct(1 - resultado.ingresos / declarada.base, 0)} de la temporada
+                de base · {calculadas.length} operaciones
               </p>
             </div>
+            {(() => {
+              const dif = r2(declarada.base - resultado.ingresos)
+              const cuadra = Math.abs(dif) < 0.01
+              return (
+                <div
+                  className={`rounded-xl border p-3 ${
+                    cuadra ? 'border-verde/30 bg-verde/8' : 'border-rojo/30 bg-rojo/8'
+                  }`}
+                >
+                  <p
+                    className={`text-[11px] font-medium uppercase tracking-wider ${
+                      cuadra ? 'text-verde' : 'text-rojo'
+                    }`}
+                  >
+                    {cuadra ? 'Cuadra con la hoja' : 'Diferencia'}
+                  </p>
+                  <p className="cifra mt-1 text-xl font-semibold text-tinta">{eur(dif)}</p>
+                  <p className="text-[11px] text-tinta-2">
+                    {cuadra
+                      ? 'Cada fila de la hoja está cargada línea a línea'
+                      : `${pct(Math.abs(dif) / declarada.base, 0)} de la temporada`}
+                  </p>
+                </div>
+              )
+            })()}
           </div>
           <p className="mt-3 text-xs leading-relaxed text-tinta-2">{declarada.notas}</p>
           <p className="mt-2 text-[11px] leading-relaxed text-tinta-3">
-            De las {declarada.operaciones} filas de la hoja, {declarada.filasSinIva} se cobraron sin IVA
-            ({eur(declarada.baseSinIva)}): son las de efectivo. Hasta que no se importen todas desde Ajustes,
-            el resultado de abajo solo refleja la parte que hay cargada.
+            El libro de IVA cargado suma {eur(resultado.ingresosLibro)} de base emitida y{' '}
+            {eur(resultado.costesDirectosLibro)} de coste directo recibido: cubre solo parte del año, así
+            que sirve de contraste pero no manda. Los ingresos y los costes directos de abajo salen de las
+            operaciones.
           </p>
         </Panel>
       )}

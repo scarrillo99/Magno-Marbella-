@@ -7,6 +7,7 @@ import {
 } from '../types'
 import { CATEGORIAS_DIRECTAS_POR_DEFECTO, r2 } from '../lib/calc'
 import { CATEGORIAS_GASTO, FACTURAS_EMITIDAS, FACTURAS_RECIBIDAS } from './facturas2026'
+import { operaciones2026 } from './magnoEntrenos2026'
 
 /* -------------------------------------------------------------------------
  * Datos reales del control operativo de Magno Marbella (temporadas 2025-2026).
@@ -262,120 +263,6 @@ const DEFINICIONES: DefOperacion[] = [
     },
   },
 
-  /* ------------------------------ Temporada 2026 ------------------------------ */
-  {
-    id: 'op_2026_monchu',
-    factura: 'MM-2026-001',
-    fecha: '2026-01-12',
-    temporada: 2026,
-    ubicacion: 'Villa / Hotel Marbella',
-    jugador: 'Monchu',
-    totalVenta: 11351.01,
-    totalCoste: 7927.84,
-    pagado: 6000,
-    notas: 'Paquete completo: villa con chef, campo en MFC y staff propio.',
-    mix: {
-      chef: { cantidad: 30, venta: 0.45, coste: 0.5, proveedorId: 'prov_alojamiento' },
-      campo: { cantidad: 30, venta: 0.3, coste: 0.33, proveedorId: 'prov_mfc' },
-      coach: { cantidad: 30, venta: 0.2, coste: 0.14, proveedorId: 'prov_coach' },
-      fisio: { cantidad: 8, venta: 0.05, coste: 0.03, proveedorId: 'prov_fisio' },
-    },
-  },
-  {
-    id: 'op_2026_alvian',
-    factura: 'MM-2026-002',
-    fecha: '2026-01-26',
-    temporada: 2026,
-    ubicacion: 'Marbella Football Center',
-    jugador: 'Alvian',
-    totalVenta: 5953.2,
-    totalCoste: 2831.4,
-    notas: 'Operación de referencia en margen para 2026.',
-    mix: {
-      campo: { cantidad: 30, venta: 0.5, coste: 0.7, proveedorId: 'prov_mfc' },
-      coach: { cantidad: 30, venta: 0.4, coste: 0.25, proveedorId: 'prov_coach' },
-      gimnasio: { cantidad: 12, venta: 0.1, coste: 0.05, proveedorId: 'prov_gym' },
-    },
-  },
-  {
-    id: 'op_2026_noah',
-    factura: 'MM-2026-003',
-    fecha: '2026-02-09',
-    temporada: 2026,
-    ubicacion: 'Marbella Football Center',
-    jugador: 'Noah',
-    totalVenta: 4222.9,
-    totalCoste: 2783,
-    pagado: 2000,
-    notas: 'Pendiente segundo pago del agente.',
-    mix: {
-      campo: { cantidad: 24, venta: 0.55, coste: 0.72, proveedorId: 'prov_mfc' },
-      coach: { cantidad: 24, venta: 0.35, coste: 0.23, proveedorId: 'prov_coach' },
-      fisio: { cantidad: 5, venta: 0.1, coste: 0.05, proveedorId: 'prov_fisio' },
-    },
-  },
-  {
-    id: 'op_2026_tyler',
-    factura: 'MM-2026-004',
-    fecha: '2026-02-16',
-    temporada: 2026,
-    ubicacion: 'Banus FC',
-    jugador: 'Tyler',
-    totalVenta: 3944.6,
-    totalCoste: 3025,
-    notas: 'Coste de instalacion elevado: revisar tarifa con Banus FC.',
-    mix: {
-      campo: { cantidad: 20, venta: 0.55, coste: 0.7, proveedorId: 'prov_banus' },
-      coach: { cantidad: 20, venta: 0.45, coste: 0.3, proveedorId: 'prov_coach' },
-    },
-  },
-  {
-    id: 'op_2026_leo',
-    factura: 'MM-2026-005',
-    fecha: '2026-03-02',
-    temporada: 2026,
-    ubicacion: 'Banus FC',
-    jugador: 'Leo',
-    totalVenta: 3412.2,
-    totalCoste: 2117.5,
-    pagado: 1706.1,
-    notas: 'Cobrado el 50% a la reserva.',
-    mix: {
-      campo: { cantidad: 18, venta: 0.55, coste: 0.7, proveedorId: 'prov_banus' },
-      coach: { cantidad: 18, venta: 0.45, coste: 0.3, proveedorId: 'prov_coach' },
-    },
-  },
-  {
-    id: 'op_2026_gabz',
-    factura: 'MM-2026-006',
-    fecha: '2026-03-02',
-    temporada: 2026,
-    ubicacion: 'Banus FC',
-    jugador: 'Gabz',
-    totalVenta: 3412.2,
-    totalCoste: 2117.5,
-    notas: 'Bloque paralelo al de Leo, mismas condiciones.',
-    mix: {
-      campo: { cantidad: 18, venta: 0.55, coste: 0.7, proveedorId: 'prov_banus' },
-      coach: { cantidad: 18, venta: 0.45, coste: 0.3, proveedorId: 'prov_coach' },
-    },
-  },
-  {
-    id: 'op_2026_varios',
-    factura: 'MM-2026-007',
-    fecha: '2026-04-06',
-    temporada: 2026,
-    ubicacion: 'Marbella Football Center',
-    jugador: 'Varios (operaciones menores)',
-    totalVenta: 12407.89,
-    totalCoste: 1497.76,
-    notas: 'Registro agregado que cierra la temporada 2026 contra el control operativo. Desglosar según se recuperen las facturas individuales.',
-    mix: {
-      campo: { cantidad: 30, venta: 0.4, coste: 0.6, proveedorId: 'prov_mfc' },
-      coach: { cantidad: 30, venta: 0.45, coste: 0.3, proveedorId: 'prov_coach' },
-      gimnasio: { cantidad: 15, venta: 0.15, coste: 0.1, proveedorId: 'prov_gym' },
-    },
-  },
 ]
 
 const LIQUIDACIONES: AppState['liquidaciones'] = [
@@ -386,11 +273,6 @@ const LIQUIDACIONES: AppState['liquidaciones'] = [
   { id: 'liq_5', proveedorId: 'prov_chef', fecha: '2025-08-10', temporada: 2025, concepto: 'Servicio de chef bloque Rogon', importe: 5580.0, estado: 'pagada' },
   { id: 'liq_6', proveedorId: 'prov_fisio', fecha: '2025-10-05', temporada: 2025, concepto: 'Sesiones de fisioterapia temporada 2025', importe: 1240.0, estado: 'pendiente' },
   { id: 'liq_7', proveedorId: 'prov_gym', fecha: '2025-10-05', temporada: 2025, concepto: 'Accesos y preparador fisico 2025', importe: 980.0, estado: 'pendiente' },
-  { id: 'liq_8', proveedorId: 'prov_mfc', fecha: '2026-02-28', temporada: 2026, concepto: 'Alquiler de campo enero-febrero 2026', importe: 7420.0, estado: 'pagada' },
-  { id: 'liq_9', proveedorId: 'prov_banus', fecha: '2026-03-31', temporada: 2026, concepto: 'Alquiler de campo Q1 2026', importe: 5210.0, estado: 'pendiente' },
-  { id: 'liq_10', proveedorId: 'prov_coach', fecha: '2026-03-15', temporada: 2026, concepto: 'Liquidación staff de entrenadores Q1 2026', importe: 3335.0, estado: 'pendiente' },
-  { id: 'liq_11', proveedorId: 'prov_alojamiento', fecha: '2026-02-05', temporada: 2026, concepto: 'Villa y chef bloque Monchu', importe: 3960.0, estado: 'pagada' },
-  { id: 'liq_12', proveedorId: 'prov_chef', fecha: '2026-02-20', temporada: 2026, concepto: 'Servicio de chef temporada 2026', importe: 1698.84, estado: 'pendiente' },
 ]
 
 /* ---------------------------------------------------------------------------
@@ -474,10 +356,10 @@ const TARIFAS_BASE: DefTarifa[] = [
   { servicio: 'campo', proveedorId: 'prov_banus', concepto: 'Campo · Banus FC', venta: 360, coste: 250, origen: 'hoja de control 2026' },
   { servicio: 'campo', proveedorId: 'prov_estepona', concepto: 'Campo · Estepona Football Center', venta: 360, coste: 250, origen: 'hoja de control 2026' },
   { servicio: 'campo', proveedorId: 'prov_dama', concepto: 'Campo · Dama de Noche', venta: 360, coste: 250, origen: 'mismo precio que Banus; confirmar' },
-  { servicio: 'coach', proveedorId: 'prov_coach', concepto: 'Entrenador', venta: 110, coste: 50, origen: 'hoja de control 2026; aparecen también 108 de venta y 70 de coste' },
-  { servicio: 'gimnasio', proveedorId: 'prov_gym', concepto: 'Gimnasio', venta: 95, coste: 60, origen: 'hoja de control 2026; aparecen también 90, 85 y 80 de venta' },
-  { servicio: 'fisio', proveedorId: 'prov_fisio', concepto: 'Fisio', venta: 70, coste: 50, origen: 'hoja de control 2026' },
-  { servicio: 'chef', proveedorId: 'prov_chef', concepto: 'Chef', venta: 180, coste: 120, origen: 'hoja de control 2026; el precio varía mucho por servicio' },
+  { servicio: 'coach', proveedorId: 'prov_coach', concepto: 'Entrenador', venta: 110, coste: 50, origen: 'hoja MAGNO ENTRENOS 2026: 110 de venta en todas las filas salvo una de 200; el coste pasa de 50 a 70 a partir de julio' },
+  { servicio: 'gimnasio', proveedorId: 'prov_gym', concepto: 'Gimnasio', venta: 95, coste: 60, origen: 'hoja MAGNO ENTRENOS 2026: venta de 95 en verano y 90, 85 u 80 en otoño; el coste baja de 60 a 50 en octubre' },
+  { servicio: 'fisio', proveedorId: 'prov_fisio', concepto: 'Fisio', venta: 80, coste: 50, origen: 'hoja MAGNO ENTRENOS 2026: 80 de venta en la mayoria de filas; en bloques largos aparece a 180 de venta y 120 de coste' },
+  { servicio: 'chef', proveedorId: 'prov_chef', concepto: 'Chef', venta: 180, coste: 120, origen: 'hoja MAGNO ENTRENOS 2026: se factura por importe cerrado (1.683 y 3.300 en 2026), no por tarifa' },
   { servicio: 'chef', proveedorId: 'prov_alojamiento', concepto: 'Villa u hotel', venta: 0, coste: 0, origen: 'se factura por importe cerrado, no por tarifa', activa: false },
 ]
 
@@ -511,7 +393,7 @@ const FACTURACION_DECLARADA: AppState['facturacionDeclarada'] = [
     filasSinIva: 18,
     baseSinIva: 14253.0,
     notas:
-      'La hoja llega hasta diciembre; el libro de IVA cargado solo cubre de abril a agosto. La mitad de las filas se cobraron sin IVA.',
+      'Las 36 filas de la hoja estan cargadas linea a linea: 16 facturadas con IVA (96.666,00 € de base) y 18 cobradas sin IVA (14.253,00 €), mas 2 filas sin importe. El libro de IVA cargado solo cubre de abril a agosto.',
   },
 ]
 
@@ -525,15 +407,20 @@ const RESUMENES_DECLARADOS: AppState['resumenesDeclarados'] = [
     detalleCostes: [{ concepto: 'Coste MFC', importe: 8516.3 }],
   },
   {
+    // Cifras de la propia hoja MAGNO ENTRENOS, no estimadas: la columna Base
+    // suma 110.919,00 y la columna Beneficio 40.095,00.
     temporada: 2026,
-    totalFacturado: 44704.0,
-    totalGastosProveedores: 22300.0,
-    impuestos: 5575.0,
-    beneficioNeto: 16725.0,
+    totalFacturado: 110919.0,
+    totalGastosProveedores: 70824.0,
+    impuestos: 10023.75,
+    beneficioNeto: 30071.25,
+    sinIva: true,
     detalleCostes: [
-      { concepto: 'Coste MFC', importe: 19411.9 },
-      { concepto: 'Coste coaches', importe: 3335.0 },
-      { concepto: 'Coste chef', importe: 1698.84 },
+      { concepto: 'Campo (MFC, Banus y Estepona)', importe: 37700.0 },
+      { concepto: 'Entrenadores', importe: 18180.0 },
+      { concepto: 'Gimnasio', importe: 9860.0 },
+      { concepto: 'Chef', importe: 4124.0 },
+      { concepto: 'Fisio', importe: 960.0 },
     ],
   },
 ]
@@ -542,13 +429,16 @@ export function estadoInicial(): AppState {
   return {
     empresa: 'Magno Marbella · Entrenos Sports Services',
     temporadas: [
-      // El fee se mantiene en 2025 y 2026 porque sus operaciones se
-      // reconstruyeron con él para cuadrar los totales declarados.
+      // 2025 sigue reconstruida con fee para cuadrar sus totales declarados.
+      // 2026 ya no lo lleva: las 36 filas de la hoja traen precio de venta y
+      // coste reales, y el margen sale de la diferencia.
       { year: 2025, impuestoPct: 0.22, ivaPct: 0.21, feePct: 0.2, activa: true },
-      { year: 2026, impuestoPct: 0.25, ivaPct: 0.21, feePct: 0.2, activa: true },
+      { year: 2026, impuestoPct: 0.25, ivaPct: 0.21, feePct: 0, activa: true },
       { year: 2027, impuestoPct: 0.25, ivaPct: 0.21, feePct: 0, activa: true },
     ],
-    operaciones: DEFINICIONES.map(construir),
+    // 2025 sigue reconstruida a partir de totales; 2026 son las 36 filas
+    // reales de la hoja MAGNO ENTRENOS, linea a linea.
+    operaciones: [...DEFINICIONES.map(construir), ...operaciones2026()],
     proveedores: PROVEEDORES.map((p) => ({ ...p })),
     liquidaciones: LIQUIDACIONES.map((l) => ({ ...l })),
     clientes: CLIENTES.map((c) => ({ ...c })),

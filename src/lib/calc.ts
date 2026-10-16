@@ -63,7 +63,12 @@ export interface OperacionCalculada {
  *   IVA soportado   = Base coste x IVA coste%
  *   Total proveedor = Base coste + IVA soportado
  *
- *   Beneficio       = Total cliente - Total proveedor
+ *   Beneficio       = Base imponible - Base coste
+ *
+ * El beneficio se mide siempre base contra base, nunca total contra total: el
+ * IVA repercutido no es ingreso y el IVA soportado no es coste. La diferencia
+ * entre ambos es una deuda con Hacienda y se presenta aparte, como IVA a
+ * liquidar. Medirlo con los totales inflaria el margen justo en ese importe.
  */
 export function calcularLinea(
   linea: LineaServicio,
@@ -81,7 +86,7 @@ export function calcularLinea(
   const ivaCoste = r2(baseCoste * linea.ivaCostePct)
   const totalCoste = r2(baseCoste + ivaCoste)
 
-  const beneficio = r2(totalVenta - totalCoste)
+  const beneficio = r2(baseImponible - baseCoste)
 
   return {
     linea,
@@ -94,7 +99,7 @@ export function calcularLinea(
     ivaCoste,
     totalCoste,
     beneficio,
-    margenPct: totalVenta > 0 ? beneficio / totalVenta : 0,
+    margenPct: baseImponible > 0 ? beneficio / baseImponible : 0,
   }
 }
 
@@ -120,7 +125,9 @@ export function calcularOperacion(op: Operacion): OperacionCalculada {
 
   const totalVenta = suma((l) => l.totalVenta)
   const totalCoste = suma((l) => l.totalCoste)
-  const beneficioOperativo = r2(totalVenta - totalCoste)
+  const baseImponible = suma((l) => l.baseImponible)
+  const baseCoste = suma((l) => l.baseCoste)
+  const beneficioOperativo = r2(baseImponible - baseCoste)
 
   return {
     op,
@@ -128,16 +135,16 @@ export function calcularOperacion(op: Operacion): OperacionCalculada {
     subtotalVenta: suma((l) => l.base),
     descuento: r2(descuento),
     fee: suma((l) => l.fee),
-    baseImponible: suma((l) => l.baseImponible),
+    baseImponible,
     ivaVenta: suma((l) => l.iva),
     totalVenta,
     pagado: r2(op.pagado),
     resta: r2(totalVenta - op.pagado),
-    baseCoste: suma((l) => l.baseCoste),
+    baseCoste,
     ivaCoste: suma((l) => l.ivaCoste),
     totalCoste,
     beneficioOperativo,
-    margenPct: totalVenta > 0 ? beneficioOperativo / totalVenta : 0,
+    margenPct: baseImponible > 0 ? beneficioOperativo / baseImponible : 0,
   }
 }
 
@@ -208,7 +215,8 @@ export function resumirOperaciones(
     margenPorTemporada.set(t, (margenPorTemporada.get(t) ?? 0) + c.beneficioOperativo)
   }
 
-  acc.margenBruto = r2(acc.totalFacturado - acc.totalCostesProveedores)
+  // Base contra base: el IVA a liquidar no es margen, es deuda con Hacienda.
+  acc.margenBruto = r2(acc.baseImponible - acc.baseCoste)
   acc.ivaLiquidar = r2(acc.ivaRepercutido - acc.ivaSoportado)
 
   let impuesto = 0
@@ -229,7 +237,7 @@ export function resumirOperaciones(
   acc.feeServicio = r2(acc.feeServicio)
   acc.cobrado = r2(acc.cobrado)
   acc.pendienteCobro = r2(acc.pendienteCobro)
-  acc.margenPct = acc.totalFacturado > 0 ? acc.margenBruto / acc.totalFacturado : 0
+  acc.margenPct = acc.baseImponible > 0 ? acc.margenBruto / acc.baseImponible : 0
   acc.impuestoPctEfectivo = acc.margenBruto > 0 ? acc.impuestoSociedades / acc.margenBruto : 0
 
   return acc
@@ -275,8 +283,9 @@ export function agruparPorJugador(calculadas: OperacionCalculada[]): FilaJugador
     }
     row.operaciones += 1
     if (c.op.fecha > row.ultimaFecha) row.ultimaFecha = c.op.fecha
-    row.facturado += c.totalVenta
-    row.coste += c.totalCoste
+    // Base contra base, igual que el margen: el IVA no es ni ingreso ni coste.
+    row.facturado += c.baseImponible
+    row.coste += c.baseCoste
     row.beneficio += c.beneficioOperativo
     row.cobrado += c.pagado
     row.pendiente += c.resta
@@ -318,14 +327,15 @@ export function agruparPorServicio(calculadas: OperacionCalculada[]): FilaServic
 
   for (const c of calculadas) {
     for (const l of c.lineas) {
-      if (l.totalVenta === 0 && l.totalCoste === 0) continue
+      if (l.baseImponible === 0 && l.baseCoste === 0) continue
       const nombre = l.linea.nombre.trim() || 'Sin nombre'
       const clave = nombre.toLowerCase()
       const cur = map.get(clave) ?? { nombre, cantidad: 0, ingreso: 0, coste: 0 }
       cur.cantidad += l.linea.cantidad
-      cur.ingreso += l.totalVenta
-      cur.coste += l.totalCoste
-      costeTotal += l.totalCoste
+      // Base contra base: el IVA no es ni ingreso ni coste.
+      cur.ingreso += l.baseImponible
+      cur.coste += l.baseCoste
+      costeTotal += l.baseCoste
       map.set(clave, cur)
     }
   }
@@ -351,10 +361,15 @@ export interface FilaProveedor {
   proveedorId: string
   nombre: string
   tipo: string
+  /** Coste imputado, base imponible. */
   coste: number
+  /** Lo que de verdad hay que pagarle: base mas IVA soportado. */
+  costeConIva: number
   pesoPct: number
   operaciones: number
+  /** Pagado segun las operaciones, mas las liquidaciones ya saldadas. */
   liquidado: number
+  /** Lo que queda por pagarle. */
   pendienteLiquidar: number
 }
 
@@ -364,18 +379,27 @@ export function agruparPorProveedor(
   state: AppState,
   liquidacionesFiltradas: Liquidacion[],
 ): FilaProveedor[] {
-  const map = new Map<string, { coste: number; ops: Set<string> }>()
+  const map = new Map<string, { coste: number; conIva: number; pagado: number; ops: Set<string> }>()
   let total = 0
+
+  const nuevo = () => ({ coste: 0, conIva: 0, pagado: 0, ops: new Set<string>() })
 
   for (const c of calculadas) {
     for (const l of c.lineas) {
-      if (l.totalCoste === 0) continue
+      if (l.baseCoste === 0) continue
       const pid = l.linea.proveedorId ?? l.linea.proveedorNombre.trim() ?? ''
-      const cur = map.get(pid || 'sin-asignar') ?? { coste: 0, ops: new Set<string>() }
-      cur.coste += l.totalCoste
+      const cur = map.get(pid || 'sin-asignar') ?? nuevo()
+      cur.coste += l.baseCoste
+      cur.conIva += l.totalCoste
       cur.ops.add(c.op.id)
-      total += l.totalCoste
+      total += l.baseCoste
       map.set(pid || 'sin-asignar', cur)
+    }
+    // Lo ya abonado al proveedor dentro de la propia operacion.
+    for (const [pid, importe] of Object.entries(c.op.pagosProveedor ?? {})) {
+      const cur = map.get(pid) ?? nuevo()
+      cur.pagado += importe
+      map.set(pid, cur)
     }
   }
 
@@ -388,10 +412,14 @@ export function agruparPorProveedor(
       nombre: prov?.nombre ?? (pid === 'sin-asignar' ? 'Sin asignar' : pid),
       tipo: prov?.tipo ?? 'otro',
       coste: r2(v.coste),
+      costeConIva: r2(v.conIva),
       pesoPct: total > 0 ? v.coste / total : 0,
       operaciones: v.ops.size,
-      liquidado: r2(liqs.filter((l) => l.estado === 'pagada').reduce((a, l) => a + l.importe, 0)),
-      pendienteLiquidar: r2(liqs.filter((l) => l.estado === 'pendiente').reduce((a, l) => a + l.importe, 0)),
+      liquidado: r2(v.pagado + liqs.filter((l) => l.estado === 'pagada').reduce((a, l) => a + l.importe, 0)),
+      pendienteLiquidar: r2(
+        Math.max(0, v.conIva - v.pagado) +
+          liqs.filter((l) => l.estado === 'pendiente').reduce((a, l) => a + l.importe, 0),
+      ),
     }
   })
 
@@ -405,6 +433,7 @@ export function agruparPorProveedor(
       nombre: p.nombre,
       tipo: p.tipo,
       coste: 0,
+      costeConIva: 0,
       pesoPct: 0,
       operaciones: 0,
       liquidado: r2(liqs.filter((l) => l.estado === 'pagada').reduce((a, l) => a + l.importe, 0)),
@@ -573,6 +602,10 @@ export interface LineaResultado {
 export interface ResultadoTemporada {
   ingresos: number
   costesDirectos: number
+  /** Coste directo que aparece en el libro de IVA, solo como contraste. */
+  costesDirectosLibro: number
+  /** Base emitida en el libro de IVA, solo como contraste. */
+  ingresosLibro: number
   otrosGastos: number
   detalleDirectos: { etiqueta: string; importe: number }[]
   detalleOtros: { etiqueta: string; importe: number }[]
@@ -592,8 +625,16 @@ export interface ResultadoTemporada {
  * liquida con Hacienda y no es ni ingreso ni gasto. Incluirlo en ambos lados
  * infla el resultado. La retención de IRPF tampoco es un gasto: es parte del
  * coste del profesional que se ingresa en Hacienda en lugar de pagárselo a él.
+ *
+ * Los ingresos y los costes directos salen de las operaciones, que son el
+ * registro completo de la temporada. El libro de IVA aporta unicamente los
+ * gastos de estructura, que no estan en ninguna operacion; sus categorias
+ * directas se dejan fuera para no contar dos veces el mismo coste de
+ * proveedor, y se devuelven aparte como contraste.
  */
 export function resultadoTemporada(
+  resumen: ResumenGlobal,
+  servicios: FilaServicio[],
   emitidas: FacturaEmitida[],
   recibidas: FacturaRecibida[],
   categorias: Record<string, string>,
@@ -601,7 +642,8 @@ export function resultadoTemporada(
   repartoPct: number,
   impuestoPct: number,
 ): ResultadoTemporada {
-  const ingresos = r2(emitidas.reduce((a, f) => a + f.base, 0))
+  const ingresos = resumen.baseImponible
+  const ingresosLibro = r2(emitidas.reduce((a, f) => a + f.base, 0))
 
   const directas = new Set(categoriasDirectas)
   const porCat = new Map<string, { directa: boolean; importe: number }>()
@@ -619,10 +661,16 @@ export function resultadoTemporada(
       .filter((x) => x.importe !== 0)
       .sort((a, b) => b.importe - a.importe)
 
-  const detalleDirectos = agrupar(true)
   const detalleOtros = agrupar(false)
-  const costesDirectos = r2(detalleDirectos.reduce((a, x) => a + x.importe, 0))
+  const costesDirectosLibro = r2(agrupar(true).reduce((a, x) => a + x.importe, 0))
   const otrosGastos = r2(detalleOtros.reduce((a, x) => a + x.importe, 0))
+
+  // El desglose de coste directo es el de los servicios de las operaciones.
+  const detalleDirectos = servicios
+    .filter((s) => s.coste > 0)
+    .map((s) => ({ etiqueta: s.nombre, importe: s.coste }))
+    .sort((a, b) => b.importe - a.importe)
+  const costesDirectos = resumen.baseCoste
 
   const margenBruto = r2(ingresos - costesDirectos)
   const resultadoAntesImpuestos = r2(margenBruto - otrosGastos)
@@ -632,6 +680,8 @@ export function resultadoTemporada(
   return {
     ingresos,
     costesDirectos,
+    costesDirectosLibro,
+    ingresosLibro,
     otrosGastos,
     detalleDirectos,
     detalleOtros,
