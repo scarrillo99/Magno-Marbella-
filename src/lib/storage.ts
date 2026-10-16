@@ -20,6 +20,9 @@ const NOMBRES_HEREDADOS: Record<string, string> = {
 let contadorLinea = 0
 const idLinea = () => `lin_mig_${(contadorLinea += 1)}`
 
+let contadorId = 0
+const uidSimple = (p: string) => `${p}_mig_${(contadorId += 1)}`
+
 /**
  * Convierte una operación del modelo antiguo —cinco servicios fijos y el IVA
  * a nivel de operación— al actual, de líneas libres con su propio IVA.
@@ -131,6 +134,7 @@ export function normalizarEstado(raw: unknown): AppState {
       ? s.clientes.map((c) => ({
           id: texto(c?.id) || `cli_${texto(c?.nombre).toLowerCase()}`,
           nombre: texto(c?.nombre),
+          cif: texto(c?.cif),
           agencia: texto(c?.agencia),
           contacto: texto(c?.contacto),
           club: texto(c?.club),
@@ -158,6 +162,43 @@ export function normalizarEstado(raw: unknown): AppState {
           activa: t?.activa !== false,
         }))
       : base.tarifas,
+    facturasEmitidas: Array.isArray(s.facturasEmitidas)
+      ? s.facturasEmitidas.map((f) => ({
+          id: texto(f?.id) || uidSimple('fe'),
+          fecha: texto(f?.fecha),
+          numero: texto(f?.numero),
+          cliente: texto(f?.cliente),
+          cif: texto(f?.cif),
+          temporada: numero(f?.temporada, 2026),
+          base: numero(f?.base),
+          ivaPct: numero(f?.ivaPct),
+          retencionPct: numero(f?.retencionPct),
+          cobrada: f?.cobrada !== false,
+          notas: texto(f?.notas),
+        }))
+      : base.facturasEmitidas,
+    facturasRecibidas: Array.isArray(s.facturasRecibidas)
+      ? s.facturasRecibidas.map((f) => ({
+          id: texto(f?.id) || uidSimple('fr'),
+          fecha: texto(f?.fecha),
+          numero: texto(f?.numero),
+          proveedor: texto(f?.proveedor),
+          cif: texto(f?.cif),
+          temporada: numero(f?.temporada, 2026),
+          base: numero(f?.base),
+          ivaPct: numero(f?.ivaPct),
+          retencionPct: numero(f?.retencionPct),
+          categoria: texto(f?.categoria, 'otrosGenerales'),
+          compartida: f?.compartida === true,
+          pagada: f?.pagada !== false,
+          notas: texto(f?.notas),
+        }))
+      : base.facturasRecibidas,
+    categoriasGasto:
+      s.categoriasGasto && typeof s.categoriasGasto === 'object'
+        ? (s.categoriasGasto as Record<string, string>)
+        : base.categoriasGasto,
+    repartoCompartidoPct: numero(s.repartoCompartidoPct, 0.5),
     ubicaciones: Array.isArray(s.ubicaciones) && s.ubicaciones.length > 0
       ? s.ubicaciones.filter((u): u is string => typeof u === 'string')
       : base.ubicaciones,
@@ -179,6 +220,7 @@ function clientesDesdeOperaciones(
     porNombre.set(nombre.toLowerCase(), {
       id: `cli_${nombre.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`,
       nombre,
+      cif: '',
       agencia: '',
       contacto: '',
       club: '',

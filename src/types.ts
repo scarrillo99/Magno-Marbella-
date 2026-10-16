@@ -118,6 +118,8 @@ export interface Liquidacion {
 export interface Cliente {
   id: string
   nombre: string
+  /** CIF/NIF tal como aparece en la factura. */
+  cif: string
   /** Agencia o representante que gestiona al jugador. */
   agencia: string
   contacto: string
@@ -156,6 +158,53 @@ export interface Temporada {
   activa: boolean
 }
 
+/**
+ * Factura emitida: el libro de IVA repercutido. Es el registro contable de lo
+ * que se le cobra al cliente, al margen del detalle operativo de servicios.
+ */
+export interface FacturaEmitida {
+  id: string
+  fecha: string
+  numero: string
+  cliente: string
+  cif: string
+  temporada: number
+  /** Base imponible. Negativa en una factura rectificativa. */
+  base: number
+  ivaPct: number
+  /** Retención de IRPF practicada al cliente. Poco habitual en emitidas. */
+  retencionPct: number
+  cobrada: boolean
+  notas: string
+}
+
+/** Factura recibida: el libro de IVA soportado. */
+export interface FacturaRecibida {
+  id: string
+  fecha: string
+  numero: string
+  proveedor: string
+  cif: string
+  temporada: number
+  base: number
+  ivaPct: number
+  /**
+   * Retención de IRPF de la factura de un profesional autónomo. No se le paga
+   * a él: se ingresa en Hacienda, así que el proveedor cobra base + IVA menos
+   * esta retención.
+   */
+  retencionPct: number
+  /** Clave de CATEGORIAS_GASTO. */
+  categoria: string
+  /**
+   * Gasto que sirve a Magno y a la agencia a la vez (combustible, vuelos,
+   * comidas): solo se imputa a Magno el porcentaje de reparto configurado.
+   */
+  compartida: boolean
+  pagada: boolean
+  notas: string
+}
+
 /** Cifras oficiales declaradas en el control operativo, para conciliación. */
 export interface ResumenDeclarado {
   temporada: number
@@ -174,6 +223,12 @@ export interface AppState {
   liquidaciones: Liquidacion[]
   clientes: Cliente[]
   tarifas: Tarifa[]
+  facturasEmitidas: FacturaEmitida[]
+  facturasRecibidas: FacturaRecibida[]
+  /** Categorías de gasto del libro de recibidas, editables. */
+  categoriasGasto: Record<string, string>
+  /** Porcentaje de los gastos compartidos que se imputa a Magno (0.5 = 50%). */
+  repartoCompartidoPct: number
   ubicaciones: string[]
   resumenesDeclarados: ResumenDeclarado[]
 }

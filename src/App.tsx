@@ -5,6 +5,7 @@ import {
   CalendarRange,
   ClipboardList,
   Menu,
+  Receipt,
   Settings,
   Tags,
   Trophy,
@@ -16,11 +17,13 @@ import { Operaciones } from './pages/Operaciones'
 import { Jugadores } from './pages/Jugadores'
 import { Proveedores } from './pages/Proveedores'
 import { Tarifas } from './pages/Tarifas'
+import { Facturacion } from './pages/Facturacion'
 import { Ajustes } from './pages/Ajustes'
 
 const SECCIONES = [
   { id: 'dashboard', nombre: 'Dashboard', icono: BarChart3, desc: 'KPIs y análisis' },
   { id: 'operaciones', nombre: 'Operaciones', icono: ClipboardList, desc: 'Registros por jugador' },
+  { id: 'facturacion', nombre: 'Facturación', icono: Receipt, desc: 'Libros de IVA' },
   { id: 'jugadores', nombre: 'Jugadores', icono: Trophy, desc: 'Clientes y rentabilidad' },
   { id: 'proveedores', nombre: 'Proveedores', icono: Building2, desc: 'Costes y liquidaciones' },
   { id: 'tarifas', nombre: 'Tarifas', icono: Tags, desc: 'Precios por servicio' },
@@ -182,6 +185,7 @@ function Shell() {
           {seccion === 'jugadores' && <Jugadores />}
           {seccion === 'proveedores' && <Proveedores />}
           {seccion === 'tarifas' && <Tarifas />}
+          {seccion === 'facturacion' && <Facturacion />}
           {seccion === 'ajustes' && <Ajustes />}
         </main>
       </div>

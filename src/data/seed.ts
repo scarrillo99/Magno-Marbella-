@@ -6,6 +6,7 @@ import {
   type ServicioKey,
 } from '../types'
 import { r2 } from '../lib/calc'
+import { CATEGORIAS_GASTO, FACTURAS_EMITIDAS, FACTURAS_RECIBIDAS } from './facturas2026'
 
 /* -------------------------------------------------------------------------
  * Datos reales del control operativo de Magno Marbella (temporadas 2025-2026).
@@ -392,7 +393,7 @@ const LIQUIDACIONES: AppState['liquidaciones'] = [
  * temporadas 2025 y 2026; la agencia, el club y el contacto quedan en blanco
  * porque no constan en el control de origen.
  * ------------------------------------------------------------------------ */
-const CLIENTES: AppState['clientes'] = [
+const CLIENTES_HISTORICO = [
   'Rogon',
   'Sunett',
   'Rasford',
@@ -405,15 +406,47 @@ const CLIENTES: AppState['clientes'] = [
   'Noah',
   'Leo',
   'Gabz',
-].map((nombre) => ({
-  id: `cli_${nombre.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`,
-  nombre,
-  agencia: '',
-  contacto: '',
-  club: '',
-  notas: '',
-  activo: true,
-}))
+]
+
+const idCliente = (nombre: string) => `cli_${nombre.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`
+
+/**
+ * Fichas de cliente. Se parte de los nombres y CIF reales del libro de
+ * facturas emitidas, y se añaden los jugadores del control operativo que no
+ * llegaron a facturarse con nombre propio.
+ */
+const CLIENTES: AppState['clientes'] = (() => {
+  const porNombre = new Map<string, AppState['clientes'][number]>()
+  for (const f of FACTURAS_EMITIDAS) {
+    const clave = f.cliente.trim().toLowerCase()
+    if (!clave || porNombre.has(clave)) continue
+    porNombre.set(clave, {
+      id: idCliente(f.cliente),
+      nombre: f.cliente,
+      cif: f.cif,
+      agencia: '',
+      contacto: '',
+      club: '',
+      notas: '',
+      activo: true,
+    })
+  }
+  for (const nombre of CLIENTES_HISTORICO) {
+    const clave = nombre.toLowerCase()
+    if (porNombre.has(clave)) continue
+    porNombre.set(clave, {
+      id: idCliente(nombre),
+      nombre,
+      cif: '',
+      agencia: '',
+      contacto: '',
+      club: '',
+      notas: 'Del control operativo 2025-2026; sin factura a su nombre en el libro.',
+      activo: true,
+    })
+  }
+  return [...porNombre.values()]
+})()
 
 /* ---------------------------------------------------------------------------
  * Tarifario.
@@ -498,6 +531,10 @@ export function estadoInicial(): AppState {
     liquidaciones: LIQUIDACIONES.map((l) => ({ ...l })),
     clientes: CLIENTES.map((c) => ({ ...c })),
     tarifas: TARIFAS.map((t) => ({ ...t })),
+    facturasEmitidas: FACTURAS_EMITIDAS.map((f) => ({ ...f })),
+    facturasRecibidas: FACTURAS_RECIBIDAS.map((f) => ({ ...f })),
+    categoriasGasto: { ...CATEGORIAS_GASTO },
+    repartoCompartidoPct: 0.5,
     ubicaciones: [...UBICACIONES],
     resumenesDeclarados: RESUMENES_DECLARADOS.map((r) => ({
       ...r,

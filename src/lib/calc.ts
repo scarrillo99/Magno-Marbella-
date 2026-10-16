@@ -1,5 +1,7 @@
 import {
   type AppState,
+  type FacturaEmitida,
+  type FacturaRecibida,
   type Liquidacion,
   type LineaServicio,
   type Operacion,
@@ -384,6 +386,143 @@ export function agruparPorProveedor(
   }
 
   return rows.sort((a, b) => b.coste - a.coste)
+}
+
+export interface ResumenLibros {
+  emitidas: number
+  baseEmitida: number
+  ivaRepercutido: number
+  totalEmitido: number
+  pendienteCobro: number
+  recibidas: number
+  baseRecibida: number
+  ivaSoportado: number
+  totalRecibido: number
+  /** Parte de los gastos compartidos imputada a Magno. */
+  compartidoImputado: number
+  compartidoTotal: number
+  pendientePago: number
+  ivaLiquidar: number
+  /** IRPF retenido a profesionales, pendiente de ingresar en Hacienda. */
+  retencionPracticada: number
+  margen: number
+  margenPct: number
+}
+
+/**
+ * Resumen de los libros de IVA.
+ *
+ * Un gasto compartido con la otra actividad de la sociedad solo computa en el
+ * porcentaje de reparto: su total aparece aparte, para que se vea lo que se ha
+ * dejado fuera.
+ */
+export function resumirLibros(
+  emitidas: FacturaEmitida[],
+  recibidas: FacturaRecibida[],
+  repartoPct: number,
+): ResumenLibros {
+  const acc: ResumenLibros = {
+    emitidas: emitidas.length,
+    baseEmitida: 0,
+    ivaRepercutido: 0,
+    totalEmitido: 0,
+    pendienteCobro: 0,
+    recibidas: recibidas.length,
+    baseRecibida: 0,
+    ivaSoportado: 0,
+    totalRecibido: 0,
+    compartidoImputado: 0,
+    compartidoTotal: 0,
+    pendientePago: 0,
+    ivaLiquidar: 0,
+    retencionPracticada: 0,
+    margen: 0,
+    margenPct: 0,
+  }
+
+  for (const f of emitidas) {
+    const iva = r2(f.base * f.ivaPct)
+    const cobro = r2(f.base + iva - r2(f.base * f.retencionPct))
+    acc.baseEmitida += f.base
+    acc.ivaRepercutido += iva
+    acc.totalEmitido += cobro
+    if (!f.cobrada) acc.pendienteCobro += cobro
+  }
+
+  for (const f of recibidas) {
+    const peso = f.compartida ? repartoPct : 1
+    const iva = r2(f.base * f.ivaPct)
+    const retencion = r2(f.base * f.retencionPct)
+    // Lo que sale de caja hacia el proveedor: la retención se ingresa en
+    // Hacienda, no se le paga a él.
+    const total = r2(f.base + iva - retencion)
+    acc.baseRecibida += f.base * peso
+    acc.ivaSoportado += iva * peso
+    acc.retencionPracticada += retencion * peso
+    acc.totalRecibido += total * peso
+    if (f.compartida) {
+      acc.compartidoTotal += total
+      acc.compartidoImputado += total * peso
+    }
+    if (!f.pagada) acc.pendientePago += total * peso
+  }
+
+  for (const k of [
+    'baseEmitida',
+    'ivaRepercutido',
+    'totalEmitido',
+    'pendienteCobro',
+    'baseRecibida',
+    'ivaSoportado',
+    'totalRecibido',
+    'compartidoImputado',
+    'compartidoTotal',
+    'pendientePago',
+    'retencionPracticada',
+  ] as const) {
+    acc[k] = r2(acc[k])
+  }
+
+  acc.ivaLiquidar = r2(acc.ivaRepercutido - acc.ivaSoportado)
+  acc.margen = r2(acc.totalEmitido - acc.totalRecibido)
+  acc.margenPct = acc.totalEmitido > 0 ? acc.margen / acc.totalEmitido : 0
+  return acc
+}
+
+export interface FilaCategoria {
+  categoria: string
+  etiqueta: string
+  facturas: number
+  importe: number
+  pesoPct: number
+}
+
+/** Gasto imputado a Magno por categoría del libro de recibidas. */
+export function agruparGastoPorCategoria(
+  recibidas: FacturaRecibida[],
+  categorias: Record<string, string>,
+  repartoPct: number,
+): FilaCategoria[] {
+  const map = new Map<string, { facturas: number; importe: number }>()
+  let total = 0
+  for (const f of recibidas) {
+    const peso = f.compartida ? repartoPct : 1
+    const importe = r2(f.base + r2(f.base * f.ivaPct) - r2(f.base * f.retencionPct)) * peso
+    const cur = map.get(f.categoria) ?? { facturas: 0, importe: 0 }
+    cur.facturas += 1
+    cur.importe += importe
+    total += importe
+    map.set(f.categoria, cur)
+  }
+  return [...map.entries()]
+    .map(([categoria, v]) => ({
+      categoria,
+      etiqueta: categorias[categoria] ?? categoria,
+      facturas: v.facturas,
+      importe: r2(v.importe),
+      pesoPct: total > 0 ? v.importe / total : 0,
+    }))
+    .sort((a, b) => b.importe - a.importe)
 }
 
 export interface PagoProveedor {

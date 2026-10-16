@@ -11,6 +11,8 @@ import {
 import {
   type AppState,
   type Cliente,
+  type FacturaEmitida,
+  type FacturaRecibida,
   type Liquidacion,
   type Operacion,
   type Proveedor,
@@ -35,6 +37,8 @@ interface Store {
   liquidacionesFiltradas: Liquidacion[]
   /** Tarifas de la temporada seleccionada (todas si el filtro es «todas»). */
   tarifasFiltradas: Tarifa[]
+  emitidasFiltradas: FacturaEmitida[]
+  recibidasFiltradas: FacturaRecibida[]
 
   crearOperacion: (parcial?: Partial<Operacion>) => Operacion
   guardarOperacion: (op: Operacion) => void
@@ -55,6 +59,13 @@ interface Store {
   borrarTarifa: (id: string) => void
   /** Copia el tarifario de una temporada a otra, sin pisar lo ya existente. */
   copiarTarifas: (origen: number, destino: number) => number
+
+  guardarEmitida: (f: FacturaEmitida) => void
+  borrarEmitida: (id: string) => void
+  guardarRecibida: (f: FacturaRecibida) => void
+  borrarRecibida: (id: string) => void
+  guardarCategorias: (c: Record<string, string>) => void
+  guardarRepartoCompartido: (pct: number) => void
 
   guardarTemporada: (t: Temporada) => void
   borrarTemporada: (year: number) => void
@@ -110,6 +121,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         ? estado.tarifas
         : estado.tarifas.filter((t) => t.temporada === temporadaSel),
     [estado.tarifas, temporadaSel],
+  )
+
+  const emitidasFiltradas = useMemo(
+    () =>
+      temporadaSel === 'todas'
+        ? estado.facturasEmitidas
+        : estado.facturasEmitidas.filter((f) => f.temporada === temporadaSel),
+    [estado.facturasEmitidas, temporadaSel],
+  )
+
+  const recibidasFiltradas = useMemo(
+    () =>
+      temporadaSel === 'todas'
+        ? estado.facturasRecibidas
+        : estado.facturasRecibidas.filter((f) => f.temporada === temporadaSel),
+    [estado.facturasRecibidas, temporadaSel],
   )
 
   const crearOperacion = useCallback<Store['crearOperacion']>(
@@ -263,6 +290,46 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return copiadas
   }, [])
 
+  const guardarEmitida = useCallback<Store['guardarEmitida']>((f) => {
+    setEstado((prev) => ({
+      ...prev,
+      facturasEmitidas: prev.facturasEmitidas.some((x) => x.id === f.id)
+        ? prev.facturasEmitidas.map((x) => (x.id === f.id ? f : x))
+        : [...prev.facturasEmitidas, f],
+    }))
+  }, [])
+
+  const borrarEmitida = useCallback<Store['borrarEmitida']>((id) => {
+    setEstado((prev) => ({
+      ...prev,
+      facturasEmitidas: prev.facturasEmitidas.filter((f) => f.id !== id),
+    }))
+  }, [])
+
+  const guardarRecibida = useCallback<Store['guardarRecibida']>((f) => {
+    setEstado((prev) => ({
+      ...prev,
+      facturasRecibidas: prev.facturasRecibidas.some((x) => x.id === f.id)
+        ? prev.facturasRecibidas.map((x) => (x.id === f.id ? f : x))
+        : [...prev.facturasRecibidas, f],
+    }))
+  }, [])
+
+  const borrarRecibida = useCallback<Store['borrarRecibida']>((id) => {
+    setEstado((prev) => ({
+      ...prev,
+      facturasRecibidas: prev.facturasRecibidas.filter((f) => f.id !== id),
+    }))
+  }, [])
+
+  const guardarCategorias = useCallback<Store['guardarCategorias']>((c) => {
+    setEstado((prev) => ({ ...prev, categoriasGasto: c }))
+  }, [])
+
+  const guardarRepartoCompartido = useCallback<Store['guardarRepartoCompartido']>((pct) => {
+    setEstado((prev) => ({ ...prev, repartoCompartidoPct: Math.max(0, Math.min(1, pct)) }))
+  }, [])
+
   const guardarTemporada = useCallback<Store['guardarTemporada']>((t) => {
     setEstado((prev) => ({
       ...prev,
@@ -298,6 +365,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       operacionesFiltradas,
       liquidacionesFiltradas,
       tarifasFiltradas,
+      emitidasFiltradas,
+      recibidasFiltradas,
       crearOperacion,
       guardarOperacion,
       actualizarOperacion,
@@ -312,6 +381,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       guardarTarifa,
       borrarTarifa,
       copiarTarifas,
+      guardarEmitida,
+      borrarEmitida,
+      guardarRecibida,
+      borrarRecibida,
+      guardarCategorias,
+      guardarRepartoCompartido,
       guardarTemporada,
       borrarTemporada,
       guardarUbicaciones,
@@ -324,6 +399,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       operacionesFiltradas,
       liquidacionesFiltradas,
       tarifasFiltradas,
+      emitidasFiltradas,
+      recibidasFiltradas,
       crearOperacion,
       guardarOperacion,
       actualizarOperacion,

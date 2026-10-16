@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { AlertTriangle, Download, Plus, RotateCcw, Trash2, Upload } from 'lucide-react'
 import { useStore } from '../store/store'
-import { calcularOperacion, r2, resumirOperaciones } from '../lib/calc'
+import { calcularOperacion, r2, resumirLibros, resumirOperaciones } from '../lib/calc'
 import { descargarJSON } from '../lib/storage'
 import { eur, pct } from '../lib/format'
 import type { Temporada } from '../types'
@@ -46,6 +46,32 @@ export function Ajustes() {
         }
       }),
     [estado.operaciones, estado.temporadas, estado.resumenesDeclarados],
+  )
+
+  /** Cruce libro contable / detalle operativo, temporada a temporada. */
+  const librosPorTemporada = useMemo(
+    () =>
+      estado.temporadas
+        .map((t) => {
+          const libro = resumirLibros(
+            estado.facturasEmitidas.filter((f) => f.temporada === t.year),
+            estado.facturasRecibidas.filter((f) => f.temporada === t.year),
+            estado.repartoCompartidoPct,
+          )
+          const ops = resumirOperaciones(
+            estado.operaciones.filter((o) => o.temporada === t.year).map(calcularOperacion),
+            estado.temporadas,
+          )
+          return {
+            year: t.year,
+            libro,
+            ops,
+            difIngreso: r2(ops.totalFacturado - libro.totalEmitido),
+            difGasto: r2(ops.totalCostesProveedores - libro.totalRecibido),
+          }
+        })
+        .filter((x) => x.libro.emitidas > 0 || x.libro.recibidas > 0),
+    [estado],
   )
 
   const importar = (fichero: File) => {
@@ -232,6 +258,51 @@ export function Ajustes() {
           tarifas unitarias reconstruidas a partir de los totales por jugador del control de origen.
         </p>
       </Panel>
+
+      {/* --------------------- Libro frente a operaciones ------------------------ */}
+      {librosPorTemporada.length > 0 && (
+        <Panel
+          titulo="Libro de facturas frente al control de operaciones"
+          descripcion="Lo que se facturó de verdad, comparado con lo que suman las operaciones registradas"
+        >
+          <div className="space-y-4">
+            {librosPorTemporada.map(({ year, libro, ops, difIngreso, difGasto }) => (
+              <div key={year} className="overflow-x-auto rounded-xl border border-borde">
+                <table className="w-full min-w-[640px] text-sm">
+                  <thead>
+                    <tr className="border-b border-borde bg-panel-2/50 text-[11px] uppercase tracking-wider text-tinta-3">
+                      <th className="px-4 py-2 text-left font-medium">Temporada {year}</th>
+                      <th className="px-3 py-2 text-right font-medium">Libro de facturas</th>
+                      <th className="px-3 py-2 text-right font-medium">Operaciones</th>
+                      <th className="px-4 py-2 text-right font-medium">Diferencia</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <FilaConciliacion label="Facturado" declarado={libro.totalEmitido} calculado={ops.totalFacturado} diferencia={difIngreso} />
+                    <FilaConciliacion label="Gasto de proveedores" declarado={libro.totalRecibido} calculado={ops.totalCostesProveedores} diferencia={difGasto} />
+                    <FilaConciliacion label="Margen" declarado={libro.margen} calculado={ops.margenBruto} diferencia={r2(ops.margenBruto - libro.margen)} />
+                  </tbody>
+                </table>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-[11px] leading-relaxed text-tinta-3">
+            El libro es el registro contable: manda sobre cualquier otra cifra. Las operaciones son el detalle
+            operativo de horas y servicios, que puede estar incompleto. Una diferencia grande significa que
+            faltan operaciones por registrar, o que hay facturas que no corresponden a servicios de Magno.
+          </p>
+          <div className="mt-3 flex gap-3 rounded-xl border border-oro/30 bg-oro/8 p-4">
+            <AlertTriangle size={16} className="mt-0.5 shrink-0 text-oro" />
+            <p className="text-xs leading-relaxed text-tinta-2">
+              <strong className="text-tinta">Magno no es una sociedad independiente.</strong> Los libros salen
+              de una sola sociedad que opera dos actividades, Magno Marbella y SCM Sports Agency, así que el IVA
+              y el impuesto de sociedades se liquidan de forma conjunta. El impuesto que calcula el dashboard es
+              el que le correspondería a Magno por su propio margen: sirve para medir la rentabilidad de la
+              actividad, no como cuota a ingresar.
+            </p>
+          </div>
+        </Panel>
+      )}
 
       {/* ------------------------------- Ubicaciones ----------------------------- */}
       <Panel

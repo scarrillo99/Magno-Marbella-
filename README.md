@@ -25,6 +25,7 @@ La aplicación es 100 % cliente: no necesita servidor ni base de datos. Los dato
 | **Operaciones** | Tabla CRUD con edición *inline* (fecha, jugador, ubicación, importe cobrado) y ficha completa: líneas de servicio con nombre libre, precio al cliente, coste de proveedor e IVA por línea, más el desglose de lo que hay que pagar a cada proveedor. Búsqueda, ordenación, duplicado y exportación a CSV. |
 | **Jugadores** | Rentabilidad por cliente: facturación frente a margen, dispersión volumen/rentabilidad y detalle con peso sobre la facturación y estado de cobro. Incluye el registro de **fichas de cliente** (jugador, agencia, club, contacto), independiente de la temporada. |
 | **Proveedores** | Alta y edición de instalaciones y colaboradores, coste imputado desde las operaciones y registro de liquidaciones pagadas y pendientes. |
+| **Facturación** | Libros de IVA repercutido y soportado, editables en la propia tabla como una hoja de cálculo: fecha, nº, cliente o proveedor, CIF, base, IVA, retención de IRPF, estado de cobro y de pago. Marca de gasto compartido con la agencia, desglose por categoría y exportación a CSV. |
 | **Tarifas** | Tarifario por temporada: precio de venta al cliente y coste de proveedor de cada servicio, con el margen por unidad y aviso de las tarifas que se venden por debajo de coste. Se copia de una temporada a otra en un clic. |
 | **Ajustes** | Parámetros fiscales por temporada (impuesto, IVA, fee), creación de nuevas temporadas, catálogo de ubicaciones, conciliación con el control operativo y copia de seguridad. |
 
@@ -98,11 +99,36 @@ tipo y solo sobre márgenes positivos.
 Una operación creada en una temporada distinta del año en curso nace con fecha 1 de enero de esa
 temporada, para no quedar fuera de su propio ejercicio.
 
+## La sociedad y sus dos actividades
+
+Magno Marbella no es una sociedad independiente: es una de las dos actividades de una misma sociedad,
+junto con SCM Sports Agency. Eso tiene tres consecuencias que la aplicación refleja:
+
+- **Las facturas se separan por serie.** Las de la serie `MM/` son de Magno. Quedan fuera las de la
+  serie `SCM/` y la factura `MM/000017` a HNK Gorica por 200.000 €, que se numeró como MM siendo una
+  comisión de representación de la agencia.
+- **Los gastos compartidos se reparten.** Combustible, vuelos y comidas sirven a las dos actividades:
+  se marcan como compartidos y solo se imputa a Magno el porcentaje configurado (50 % por defecto,
+  editable desde Facturación).
+- **El IVA y el impuesto de sociedades se liquidan juntos** para toda la sociedad. El impuesto que
+  calcula el dashboard es el que le correspondería a Magno por su propio margen: mide la rentabilidad
+  de la actividad, no es la cuota a ingresar.
+
 ## Datos iniciales
 
 La aplicación arranca con las temporadas 2025 y 2026 del control operativo real: 15 operaciones,
 9 proveedores y 12 liquidaciones. Se incluye además la temporada **2027** vacía de operaciones,
 con su tarifario listo para revisar, y las fichas de los clientes que ya aparecen en el histórico.
+
+### Libros de facturación 2026
+
+La temporada 2026 arranca con los libros de IVA reales de abril a agosto de 2026: **19 facturas
+emitidas** (51.181,57 €) y **100 recibidas** (27.072,39 € de gasto directo más 6.602,03 € de gastos
+compartidos con la agencia). De ahí salen también las fichas de cliente, con sus nombres y CIF reales.
+
+Siete facturas de profesionales autónomos llevan **retención de IRPF** (15 %, y una al 7 %), 475,80 €
+en total: ese importe no se le paga al proveedor, se ingresa en Hacienda, y la aplicación lo descuenta
+del importe a pagar y lo muestra en su propio indicador.
 
 ### Tarifario de partida
 

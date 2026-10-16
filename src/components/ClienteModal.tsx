@@ -7,6 +7,7 @@ import { useStore } from '../store/store'
 export const clienteVacio = (nombre = ''): Cliente => ({
   id: uid('cli'),
   nombre,
+  cif: '',
   agencia: '',
   contacto: '',
   club: '',
@@ -73,6 +74,9 @@ export function ClienteModal({
             placeholder="Nombre del jugador"
             autoFocus
           />
+        </Campo>
+        <Campo etiqueta="CIF / NIF">
+          <Texto value={borrador.cif} onChange={(e) => set({ cif: e.target.value })} placeholder="B12345678" />
         </Campo>
         <Campo etiqueta="Agencia / representante">
           <Texto

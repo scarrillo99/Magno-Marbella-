@@ -339,10 +339,11 @@ function RegistroClientes({
         />
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[780px] text-sm">
+          <table className="w-full min-w-[880px] text-sm">
             <thead>
               <tr className="border-b border-borde text-[11px] uppercase tracking-wider text-tinta-3">
                 <th className="px-5 py-2.5 text-left font-medium">Cliente</th>
+                <th className="px-3 py-2.5 text-left font-medium">CIF / NIF</th>
                 <th className="px-3 py-2.5 text-left font-medium">Agencia</th>
                 <th className="px-3 py-2.5 text-left font-medium">Club</th>
                 <th className="px-3 py-2.5 text-left font-medium">Contacto</th>
@@ -368,6 +369,7 @@ function RegistroClientes({
                           <span className="mt-0.5 block max-w-md text-[11px] text-tinta-3">{c.notas}</span>
                         )}
                       </td>
+                      <td className="cifra px-3 py-3 text-xs text-tinta-2">{c.cif || '—'}</td>
                       <td className="px-3 py-3 text-xs text-tinta-2">{c.agencia || '—'}</td>
                       <td className="px-3 py-3 text-xs text-tinta-2">{c.club || '—'}</td>
                       <td className="px-3 py-3 text-xs text-tinta-2">{c.contacto || '—'}</td>
